@@ -26,8 +26,10 @@ cp .env.example .env
 
 To download additional papers it is required:
 
-- A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api).
+- A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
+  - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
 - A copy in CSV of the file [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097)
+  - Store the CSV file in `./data/raw/Übersicht relevante Journals und Archive.csv`
 
 # 1. Übersicht relevante Journals und Archive
 
