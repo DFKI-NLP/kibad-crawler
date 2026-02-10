@@ -96,6 +96,11 @@ To download new publications the process is the following:
 10. The following fields are returned by the bulk API "corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"
 11. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/json/<release>-<batch_number>.json`
 
+## TODO
+
+- Add logging
+- Add [download links for incremental diff](https://api.semanticscholar.org/api-docs/datasets#tag/Incremental-Updates/operation/get_diff) for new papers
+
 # Resources
 
 - [Semantic Scholar API - Overview](https://www.semanticscholar.org/product/api)
