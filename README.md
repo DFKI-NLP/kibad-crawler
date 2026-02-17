@@ -98,8 +98,11 @@ To download new publications the process is the following:
 
 ## TODO
 
-- Add logging
 - Add [download links for incremental diff](https://api.semanticscholar.org/api-docs/datasets#tag/Incremental-Updates/operation/get_diff) for new papers
+- Add recommendation endpoint of the API
+- Add logging
+- Refactoring to `@dataclass`
+- Add relevance filter to select papers (we need additional input)
 
 # Resources
 

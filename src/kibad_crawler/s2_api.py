@@ -166,6 +166,7 @@ def download_bulk_paper(
         headers=headers,
         params={"fields": fields},
         json={"ids": paper_ids[:MAX_NUM_BULK_PAPERS]},
+        timeout=30,
     )
     return response_batch
 
