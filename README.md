@@ -24,6 +24,32 @@ cp .env.example .env
 
 #### Run [`semantic_scholar_api.ipynb`](./notebooks/semantic_scholar_api.ipynb) to download papers.
 
+### S2 API client (class and methods)
+
+The Semantic Scholar integration lives in `kibad_crawler.s2_api`. For a human-written overview of the client, diffs, recommendations, and relevance filter, see [docs/S2_CLIENT_AND_FEATURES.md](docs/S2_CLIENT_AND_FEATURES.md). You can use the **class-based client** or the existing **module-level functions** (unchanged for the notebook):
+
+```python
+from kibad_crawler import S2Client
+
+client = S2Client()  # uses S2_API_KEY from env
+
+# Releases and incremental diff (last two releases)
+releases = client.get_releases()
+paths = client.download_last_two_releases_diff(dataset_name="papers")
+# Diffs are stored under: data/raw/semantic_scholar/release/<to_release>/diffs/<from>_to_<to>/
+
+# Recommendations API (paper-based)
+recs = client.get_recommendations_for_paper("PAPER_ID_HERE", limit=10)
+# recs is RecommendationsResponse with recs.recommendations
+
+# Relevance filter (additional input: citations, venue, fields of study, keywords)
+from kibad_crawler import RelevanceFilter
+
+criteria = RelevanceFilter(min_citation_count=5, keywords=["NLP", "transformer"])
+papers = [...]  # list of paper dicts from bulk API
+filtered = client.filter_by_relevance(papers, criteria)
+```
+
 To download additional papers it is required:
 
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
@@ -98,11 +124,11 @@ To download new publications the process is the following:
 
 ## TODO
 
-- Add [download links for incremental diff](https://api.semanticscholar.org/api-docs/datasets#tag/Incremental-Updates/operation/get_diff) for new papers
-- Add recommendation endpoint of the API
-- Add logging
-- Refactoring to `@dataclass`
-- Add relevance filter to select papers (we need additional input)
+- ~~Add [download links for incremental diff](https://api.semanticscholar.org/api-docs/datasets#tag/Incremental-Updates/operation/get_diff) for new papers~~ (done: `S2Client.get_diff`, `download_diff_files`, `download_last_two_releases_diff`; diffs stored in `.../diffs/<from>_to_<to>/`)
+- ~~Add recommendation endpoint of the API~~ (done: `S2Client.get_recommendations_for_paper`)
+- ~~Add logging~~ (done: loguru in `S2Client`)
+- ~~Refactoring to `@dataclass`~~ (done: `s2_models.py` — `DiffRequest`, `DiffResponse`, `DiffEntry`, `RecommendationsResponse`, `PaperBatchRequest`, `RelevanceFilter`)
+- ~~Add relevance filter to select papers (we need additional input)~~ (done: `RelevanceFilter` + `filter_papers()` / `S2Client.filter_by_relevance()`; criteria: `min_citation_count`, `venue_ids`, `fields_of_study`, `keywords`)
 
 # Resources
 
