@@ -1,9 +1,11 @@
 """Semantic Scholar API client: datasets, incremental diffs, and recommendations."""
 
+from dataclasses import dataclass
 from datetime import datetime
 import gzip
-from io import StringIO
 import os
+import time
+from io import StringIO
 from pathlib import Path
 from typing import Any, Literal
 
@@ -11,14 +13,16 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
-from .config import MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY
+from .config import MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY, TIME_DELAY_S2_API
 from .relevance import filter_papers
 from .s2_models import DiffResponse, RecommendationsResponse, RelevanceFilter
+from kibad_crawler.utils import get_human_readable_size
 
 try:
     from loguru import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 
@@ -46,6 +50,42 @@ def chunker(seq: list, size: int):
     return (seq[pos : pos + size] for pos in range(0, len(seq), size))
 
 
+def get_publication_venue_id_from_issn_codes(
+    file_path: Path | str, df_venues: pd.DataFrame
+) -> list[str]:
+    """Returns a list of publication_venue_id codes that is the results from
+    combining the ISSN codes of journals and the S2 publication_venues dataset.
+
+    For the FA project the private file can be found in the following link and
+    it is called "Übersicht relevante Journals und Archive":
+    - https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097
+
+    It is expected that the file contains the following two columns:
+    - Online ISSN
+    - Print ISSN
+
+    Args:
+        file_path (Path | str): Path to the file with journals and ISSN codes.
+        df_venues (pd.DataFrame): Dataset with publication_venues.
+
+    Returns:
+        list[str]: List with publication_venue_id codes to filter the
+        publication venues dataset.
+    """
+    file_path = Path(file_path)
+    df_journals = pd.read_csv(file_path)
+    issn = [x for x in df_journals["Online ISSN"].unique() if isinstance(x, str)] + [
+        x for x in df_journals["Print ISSN"].unique() if isinstance(x, str)
+    ]
+    publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
+    if df_journals is not None:
+        logger.info(
+            f"{df_journals.shape[0]} journals in the file | {len(issn)} ISSN codes | {len(publication_venue_ids)} S2 'publication_venue_id' found."
+        )
+    return list(publication_venue_ids)
+
+
+@dataclass
 class S2Client:
     """Client for Semantic Scholar Datasets API, incremental diffs, and Recommendations API."""
 
@@ -54,16 +94,60 @@ class S2Client:
         api_key: str | None = None,
         timeout_download: int = 60,
         timeout_request: int = 30,
+        storage_path: str | None = None,
     ):
         self._api_key = api_key or S2_API_KEY
         self._timeout_download = timeout_download
         self._timeout_request = timeout_request
         self._headers = {"x-api-key": self._api_key} if self._api_key else {}
+        self._releases = self.get_releases()
+        if storage_path:
+            self._storage_path = Path(storage_path)
+        else:
+            self._storage_path = RAW_DATA_DIR / "semantic_scholar" / "release"
 
-    def download_dataset(
-        self,
-        release_id: str,
-        dataset_name: DatasetName,
+        if self._api_key is not None:
+            logger.info("Semantic Scholar API key found")
+            logger.info(f"'{self.latest_release}' is the latest release")
+        else:
+            logger.info(
+                "Semantic Scholar API not key found. Please add an API key or go to https://www.semanticscholar.org/product/api to request an API key."
+            )
+
+    @property
+    def releases(self) -> list[str]:
+        """Returns a list of releases in format `YYYY-MM-DD`"""
+        return self._releases
+
+    @property
+    def latest_release(self) -> str:
+        """Returns the latest release `YYYY-MM-DD`"""
+        return self._releases[-1]
+
+    def get_publication_venues(self, release_id: str | None = None) -> pd.DataFrame:
+        """Returns a pd.DataFrame with all the publication venues of the given
+        `release_id`. If no `release_id` is provided, it uses the latest one.
+
+        Args:
+            release_id (str | None): Release id in the format of 'YYYY-MM-DD'.
+                Defaults to None.
+
+        Returns:
+            pd.DataFrame: Publication venues of the given `release_id`.
+        """
+        release_id = release_id or self.latest_release
+        publication_venues_file_path = self.download_publication_venues(release_id=release_id)
+        with gzip.open(
+            publication_venues_file_path,
+            "r",
+        ) as f:
+            file_content = f.read()
+
+        df_venues = pd.read_json(StringIO(file_content.decode()), lines=True)
+        return df_venues
+
+    def get_dataset_url(
+        self, dataset_name: DatasetName, release_id: str | None = None
     ) -> requests.Response:
         """Download dataset from Semantic Scholar API.
 
@@ -74,17 +158,49 @@ class S2Client:
         Returns:
             requests.Response: Response from the API.
         """
+        release_id = release_id or self.latest_release
         url = f"{BASE_URL_DATASETS}/release/{release_id}/dataset/{dataset_name}"
-        logger.debug("Downloading dataset: release=%s dataset=%s", release_id, dataset_name)
+        logger.debug(
+            f"Acquiring links for dataset: release='{release_id}' dataset='{dataset_name}'"
+        )
         response = requests.get(url, headers=self._headers, timeout=self._timeout_download)
         response.raise_for_status()
+        if response.ok:
+            logger.info(
+                f"{len(response.json()['files'])} files for '{release_id}' '{dataset_name}' dataset"
+            )
         return response
 
+    def download_publication_venues(
+        self, release_id: str | None = None, overwrite: bool = False
+    ) -> Path:
+        """Download the publication venues of a given release. It uses the
+        latest release as default value.
+
+        Args:
+            release_id (str | None, optional): Release id in the format of
+                'YYYY-MM-DD'. Defaults to None.
+            overwrite (bool, optional): Overwrite already downloaded files.
+                Defaults to False.
+
+        Returns:
+            Path: Path to the publication venues file.
+        """
+        release = release_id or self.latest_release
+        response_publication_venues = self.get_dataset_url(
+            release_id=release, dataset_name="publication-venues"
+        )
+
+        # publication-venues provides is a single url
+        url = response_publication_venues.json()["files"][0]
+        path = self._storage_path / f"{release_id}" / "publication_venues"
+
+        out_path = self.download_file(url=url, path=path, overwrite=overwrite)
+
+        return out_path
+
     def download_file(
-        self,
-        url: str,
-        path: Path,
-        chunk_size: int = 10 * 1024,
+        self, url: str, path: Path, chunk_size: int = 10 * 1024, overwrite: bool = False
     ) -> Path:
         """Download file from a `url` and stores it to a `path`.
 
@@ -92,22 +208,32 @@ class S2Client:
             url (str): URL to the file.
             path (Path): Path where to store the downloaded file.
             chunk_size (int, optional): Size of chunks to store. Defaults to 10*1024.
+            overwrite (bool, optional): Whether or not overwrite a file that
+                has been already downlaoded. Defaults to False.
 
         Returns:
             Path: Path to the stored file.
         """
         path.mkdir(parents=True, exist_ok=True)
         file_name = url.split("?")[0].split("/")[-1]
-        logger.debug("Downloading file: %s -> %s", file_name, path)
-        with requests.get(
-            url, stream=True, allow_redirects=True, timeout=10
-        ) as response:
+        out_path = path / file_name
+
+        if not overwrite and out_path.exists():
+            logger.info(f"File '{file_name}' already downloaded")
+            return out_path
+
+        logger.debug(f"Downloading file: '{file_name}' -> '{path}'")
+
+        with requests.get(url, stream=True, allow_redirects=True, timeout=10) as response:
             response.raise_for_status()
-            out_path = path / file_name
             with open(out_path, mode="wb") as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     f.write(chunk)
-        logger.info("Downloaded %s", out_path)
+
+        logger.info(
+            f"Downloaded {out_path} {get_human_readable_size(int(response.headers['Content-Length']))}"
+        )
+
         return out_path
 
     def download_paper_batch(
@@ -131,7 +257,7 @@ class S2Client:
         file_name = url.split("?")[0].split("/")[-1]
         csv_path = release_path / "papers" / f"{file_name}.csv"
         if csv_path.exists():
-            logger.debug("Skipping existing %s", csv_path)
+            logger.debug(f"Skipping existing {csv_path}")
             return
 
         file_path = self.download_file(url=url, path=release_path / "papers")
@@ -146,17 +272,65 @@ class S2Client:
         df_papers["publicationdate"] = pd.to_datetime(df_papers["publicationdate"])
         df_papers = df_papers[df_papers["publicationdate"] >= date_filter]
         df_papers.to_csv(csv_path, index=False)
-        logger.info("Wrote %s (%d rows)", csv_path, len(df_papers))
+        logger.info(f"Wrote {csv_path} ({len(df_papers)} rows)")
 
         if not persistant:
             os.remove(file_path)
-            logger.debug("Removed %s", file_path)
+            logger.debug(f"Removed {file_path}")
+
+    def _download_all_papers(
+        self,
+        publication_venue_ids: list[str],
+        release_id: str | None = None,
+        n_pages: int = 0,
+        *,
+        start_date: str = "2023-01-01",
+        # end_date: str | None = None,
+        persistant: bool = False,
+    ) -> Path:
+        """Download all the files from a list of urls.
+
+        It generates a CSV file with the paper selection and deletes the .gz file.
+        The CSV files will be used to extract the `paperid` to query the API for
+        the rest of metadata of the paper.
+
+        Args:
+            file_list (list): List of urls.
+            release_path (Path): Base path for this release.
+            publication_venue_ids (list): List of publication venue ids.
+            start_date (str, optional): Only keep papers with publication date >= this.
+            persistant (bool, optional): If False, delete each .gz after filtering.
+        """
+        # Get a list of paper url
+        # Download and save the to disk
+        # Open and filter the content
+        # Export the selected list
+        # Return path to the files to generate a dataframe with them
+
+        release_id = release_id or self.latest_release
+        release_path = self._storage_path / f"{release_id}"
+        response_papers = self.get_dataset_url(dataset_name="papers", release_id=release_id)
+        file_list = response_papers.json()["files"]
+        if n_pages > 0:
+            file_list = file_list[:n_pages]
+        logger.info(f"Downloading {len(file_list)} paper files to {release_path}")
+        for url in tqdm(file_list, total=len(file_list)):
+            self.download_paper_batch(
+                url=url,
+                release_path=release_path,
+                publication_venue_ids=publication_venue_ids,
+                start_date=start_date,
+                persistant=persistant,
+            )
+
+        return release_path / "papers"
 
     def download_all_papers(
         self,
         file_list: list[str],
         release_path: Path,
         publication_venue_ids: list[str],
+        release_id: str | None = None,
         *,
         start_date: str = "2023-01-01",
         persistant: bool = False,
@@ -174,7 +348,16 @@ class S2Client:
             start_date (str, optional): Only keep papers with publication date >= this.
             persistant (bool, optional): If False, delete each .gz after filtering.
         """
-        logger.info("Downloading %d paper files to %s", len(file_list), release_path)
+        # Get a list of paper url
+        # Download and save the to disk
+        # Open and filter the content
+        # Export the selected list
+        # Return path to the files to generate a dataframe with them
+
+        release_path = self._storage_path / f"{release_id}"
+        response_papers = self.get_dataset_url(dataset_name="papers", release_id=release_id)
+        file_list = response_papers.json()["files"]
+        logger.info(f"Downloading {len(file_list)} paper files to {release_path}")
         for url in tqdm(file_list, total=len(file_list)):
             self.download_paper_batch(
                 url=url,
@@ -202,7 +385,7 @@ class S2Client:
         """
         url = f"{BASE_URL_GRAPH}/paper/batch"
         ids = paper_ids[:MAX_NUM_BULK_PAPERS]
-        logger.debug("Bulk paper request: %d IDs", len(ids))
+        logger.debug(f"Bulk paper request: {len(ids)} IDs")
         response = requests.post(
             url,
             headers=self._headers,
@@ -218,8 +401,9 @@ class S2Client:
     def get_releases(self) -> list[str]:
         """Return list of release IDs (YYYY-MM-DD), oldest first. Latest is last."""
         url = f"{BASE_URL_DATASETS}/release"
-        logger.debug("Fetching releases: %s", url)
+        logger.debug(f"Fetching releases: {url}")
         response = requests.get(url, headers=self._headers, timeout=self._timeout_request)
+        time.sleep(TIME_DELAY_S2_API)
         response.raise_for_status()
         data = response.json()
         return data if isinstance(data, list) else list(data)
@@ -243,7 +427,7 @@ class S2Client:
             requests.Response: Response with JSON containing 'diffs' (update_files, etc.).
         """
         url = f"{BASE_URL_DATASETS}/diffs/{from_release}/to/{to_release}/{dataset_name}"
-        logger.info("Fetching diff: %s -> %s (%s)", from_release, to_release, dataset_name)
+        logger.info(f"Fetching diff: {from_release} -> {to_release} ({dataset_name})")
         response = requests.get(
             url,
             headers=self._headers,
@@ -284,13 +468,17 @@ class S2Client:
         """
         if base_path is None:
             base_path = RAW_DATA_DIR / "semantic_scholar" / "release"
-        diff_dir = base_path / to_release / "diffs" / f"{from_release}_to_{to_release}" / dataset_name
+        diff_dir = (
+            base_path / to_release / "diffs" / f"{from_release}_to_{to_release}" / dataset_name
+        )
         diff_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("Diff files will be saved to %s", diff_dir)
+        logger.info(f"Diff files will be saved to {diff_dir}")
 
         parsed = self.get_diff_parsed(from_release, to_release, dataset_name)
         if not parsed.diffs:
-            logger.warning("No diffs in response for %s -> %s %s", from_release, to_release, dataset_name)
+            logger.warning(
+                f"No diffs in response for '{from_release}' -> '{to_release}' '{dataset_name}'"
+            )
             return []
 
         downloaded: list[Path] = []
@@ -300,7 +488,7 @@ class S2Client:
                     path = self.download_file(file_info.url, diff_dir)
                     downloaded.append(path)
                 except Exception as e:
-                    logger.error("Failed to download %s: %s", file_info.url, e)
+                    logger.error(f"Failed to download {file_info.url}: {e}")
         return downloaded
 
     def download_last_two_releases_diff(
@@ -323,7 +511,7 @@ class S2Client:
             return []
         from_release = releases[-2]
         to_release = releases[-1]
-        logger.info("Last two releases: %s -> %s", from_release, to_release)
+        logger.info(f"Last two releases: {from_release} -> {to_release}")
         return self.download_diff_files(
             from_release=from_release,
             to_release=to_release,
@@ -348,7 +536,7 @@ class S2Client:
             RecommendationsResponse: Parsed response with .recommendations list.
         """
         url = f"{BASE_URL_RECOMMENDATIONS}/paper/{paper_id}"
-        logger.debug("Recommendations for paper %s (limit=%d)", paper_id, limit)
+        logger.debug(f"Recommendations for paper {paper_id} (limit={limit})")
         response = requests.get(
             url,
             headers=self._headers,
@@ -389,12 +577,13 @@ def _client() -> S2Client:
 
 # Backward-compatible module-level API (notebook and existing code)
 
+
 def download_dataset(
     release_id: str,
     dataset_name: DatasetName,
 ) -> requests.Response:
     """Download dataset from Semantic Scholar API. See S2Client.download_dataset."""
-    return _client().download_dataset(release_id=release_id, dataset_name=dataset_name)
+    return _client().get_dataset_url(release_id=release_id, dataset_name=dataset_name)
 
 
 def download_file(url: str, path: Path, chunk_size: int = 10 * 1024) -> Path:

@@ -33,6 +33,7 @@ FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 S2_API_KEY = os.environ.get("S2_API_KEY", "")
 MAX_NUM_BULK_PAPERS: int = 500
+TIME_DELAY_S2_API = 1
 
 # If tqdm is installed, configure loguru with tqdm.write
 # https://github.com/Delgan/loguru/issues/135

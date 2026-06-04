@@ -28,7 +28,7 @@ def test_client_singleton():
 def test_download_dataset(mock_get):
     mock_get.return_value = MagicMock(status_code=200, raise_for_status=MagicMock())
     client = S2Client(api_key="test-key")
-    client.download_dataset("2026-01-01", "publication-venues")
+    client.get_dataset_url("2026-01-01", "publication-venues")
     mock_get.assert_called_once()
     call_url = mock_get.call_args[0][0]
     assert "2026-01-01" in call_url

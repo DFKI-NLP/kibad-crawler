@@ -215,3 +215,4 @@ notebooks/*.csv
 
 # Personal vscode configuration
 .vscode/settings.json
+uv.lock

@@ -32,6 +32,7 @@ dependencies = [
     "gitpython>=3.1.45",
     "jupyter>=1.1.1,<2.0.0", # to run jupyter notebooks
     "matplotlib>=3.10.8,<4.0.0", # to run eval notebook (create plots)
+    "pendulum>=3.2.0",
 ]
 
 [dependency-groups]
@@ -130,3 +131,10 @@ files = ["src", "tests"]
 [[tool.mypy.overrides]]
 module = ["pymupdf4llm.*", "datasets.*", "llama_index.llms.openai_like.*"]
 follow_untyped_imports = true
+
+[tool.pylint.messages_control]
+disable = [
+    "W1203",
+    "W0718",
+    "C0114",
+]

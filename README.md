@@ -22,6 +22,10 @@ cp .env.example .env
 
 # Usage
 
+```bash
+uv run src/kibad_crawler/main.py download-publication-venues
+```
+
 #### Run [`semantic_scholar_api.ipynb`](./notebooks/semantic_scholar_api.ipynb) to download papers.
 
 ### S2 API client (class and methods)
@@ -121,14 +125,6 @@ To download new publications the process is the following:
 9. Use the list of `paperid`s to bulk query the API to download 500 papers on each call
 10. The following fields are returned by the bulk API "corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"
 11. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/json/<release>-<batch_number>.json`
-
-## TODO
-
-- ~~Add [download links for incremental diff](https://api.semanticscholar.org/api-docs/datasets#tag/Incremental-Updates/operation/get_diff) for new papers~~ (done: `S2Client.get_diff`, `download_diff_files`, `download_last_two_releases_diff`; diffs stored in `.../diffs/<from>_to_<to>/`)
-- ~~Add recommendation endpoint of the API~~ (done: `S2Client.get_recommendations_for_paper`)
-- ~~Add logging~~ (done: loguru in `S2Client`)
-- ~~Refactoring to `@dataclass`~~ (done: `s2_models.py` — `DiffRequest`, `DiffResponse`, `DiffEntry`, `RecommendationsResponse`, `PaperBatchRequest`, `RelevanceFilter`)
-- ~~Add relevance filter to select papers (we need additional input)~~ (done: `RelevanceFilter` + `filter_papers()` / `S2Client.filter_by_relevance()`; criteria: `min_citation_count`, `venue_ids`, `fields_of_study`, `keywords`)
 
 # Resources
 
