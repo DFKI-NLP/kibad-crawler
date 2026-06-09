@@ -138,3 +138,6 @@ disable = [
     "W0718",
     "C0114",
 ]
+
+[project.scripts]
+kibad = 'kibad_crawler.main:app'

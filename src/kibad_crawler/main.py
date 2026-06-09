@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import typer
+from loguru import logger
 
 from kibad_crawler import s2_api
 
@@ -8,20 +9,37 @@ app = typer.Typer()
 
 
 @app.command()
-def download_publication_venues(release: str | None = None):
+def download_publication_venues(
+    release: str | None = None,
+    storage_path: str | None = None,
+):
     """Downloads the publication venues of a given Semantic Scholar release"""
-    s2_client = s2_api.S2Client()
+    s2_client = s2_api.S2Client(storage_path=storage_path)
     release = release or s2_client.latest_release
     _ = s2_client.get_publication_venues(release_id=release)
 
 
 @app.command()
-def download_papers_metadata(file_with_issn: str, release: str | None = None, n_pages: int = 0):
+def list_releases(top_n: int = 10):
+    """Shows the latest top_n releases from the datasets"""
+    s2_client = s2_api.S2Client()
+    logger.info(
+        f"Latest {top_n} of {len(s2_client.releases)} releases: {sorted(s2_client.releases[-top_n:], reverse=True)}"
+    )
+
+
+@app.command()
+def download_papers_metadata(
+    file_with_issn: str,
+    release: str | None = None,
+    n_pages: int = 0,
+    storage_path: str | None = None,
+):
     """Download papers from Semantic Scholar"""
     assert Path(file_with_issn).exists()
 
     # initialization of the client
-    s2_client = s2_api.S2Client()
+    s2_client = s2_api.S2Client(storage_path=storage_path)
     release = release or s2_client.latest_release
 
     # publication venues dataset

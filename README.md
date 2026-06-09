@@ -23,12 +23,41 @@ cp .env.example .env
 # Usage
 
 ```bash
+uv run src/kibad_crawler/main.py list-releases --top-n 10
+
 uv run src/kibad_crawler/main.py download-publication-venues
+
+uv run src/kibad_crawler/main.py download-papers-metadata "FILEPATHTOJOURNALSWITHISSNCODES.csv" --n-pages 2
 ```
 
-#### Run [`semantic_scholar_api.ipynb`](./notebooks/semantic_scholar_api.ipynb) to download papers.
+```bash
+uv run kibad --help
+uv run kibad list-releases
+uv run kibad list-releases --top-n 15
+uv run kibad download-publication-venues
+uv run kibad download-publication-venues --release 2026-05-26
+uv run kibad download-papers-metadata --file-with-issn 
+```
 
-### S2 API client (class and methods)
+```mermaid
+---
+title: Crawler using Semantic Scholar (S2) API
+---
+flowchart LR
+    id1(Select S2 release) --> id2
+    id2(Download S2 release publication venues)
+    id3(Read ISSN codes to filter venues)
+    id2 --> id4
+    id3 --> id4{Filter publication venue by ISSN}
+    id4 --> id5(Download S2 papers of the release and filter by publication venue)
+    id4 --> id51(Download S2 papers diff between two releases and filter by publication venue)
+    id5 --> |Relevance filter by citations and publication date|id6(S2 bulk API download paper metadata: title, abstract, etc.)
+    id51 --> |Relevance filter by citations and publication date|id6(S2 bulk API download paper metadata: title, abstract, etc.)
+    id6 --> |Relevance filter using metadata|id7(Download PDF files)
+    id7 --> |Relevance filter using content|id8(Postprocessing)
+```
+
+## S2 API client (class and methods)
 
 The Semantic Scholar integration lives in `kibad_crawler.s2_api`. For a human-written overview of the client, diffs, recommendations, and relevance filter, see [docs/S2_CLIENT_AND_FEATURES.md](docs/S2_CLIENT_AND_FEATURES.md). You can use the **class-based client** or the existing **module-level functions** (unchanged for the notebook):
 

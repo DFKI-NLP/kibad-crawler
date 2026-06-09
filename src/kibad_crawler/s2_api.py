@@ -13,7 +13,7 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
-from .config import MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY, TIME_DELAY_S2_API
+from .config import MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY, DELAY_S2_API
 from .relevance import filter_papers
 from .s2_models import DiffResponse, RecommendationsResponse, RelevanceFilter
 from kibad_crawler.utils import get_human_readable_size
@@ -163,7 +163,9 @@ class S2Client:
         logger.debug(
             f"Acquiring links for dataset: release='{release_id}' dataset='{dataset_name}'"
         )
+        time.sleep(DELAY_S2_API)
         response = requests.get(url, headers=self._headers, timeout=self._timeout_download)
+        time.sleep(DELAY_S2_API)
         response.raise_for_status()
         if response.ok:
             logger.info(
@@ -224,11 +226,14 @@ class S2Client:
 
         logger.debug(f"Downloading file: '{file_name}' -> '{path}'")
 
+        time.sleep(DELAY_S2_API)
         with requests.get(url, stream=True, allow_redirects=True, timeout=10) as response:
             response.raise_for_status()
             with open(out_path, mode="wb") as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     f.write(chunk)
+
+        time.sleep(DELAY_S2_API)
 
         logger.info(
             f"Downloaded {out_path} {get_human_readable_size(int(response.headers['Content-Length']))}"
@@ -386,6 +391,7 @@ class S2Client:
         url = f"{BASE_URL_GRAPH}/paper/batch"
         ids = paper_ids[:MAX_NUM_BULK_PAPERS]
         logger.debug(f"Bulk paper request: {len(ids)} IDs")
+        time.sleep(DELAY_S2_API)
         response = requests.post(
             url,
             headers=self._headers,
@@ -393,6 +399,7 @@ class S2Client:
             json={"ids": ids},
             timeout=self._timeout_request,
         )
+        time.sleep(DELAY_S2_API)
         response.raise_for_status()
         return response
 
@@ -402,8 +409,9 @@ class S2Client:
         """Return list of release IDs (YYYY-MM-DD), oldest first. Latest is last."""
         url = f"{BASE_URL_DATASETS}/release"
         logger.debug(f"Fetching releases: {url}")
+        time.sleep(DELAY_S2_API)
         response = requests.get(url, headers=self._headers, timeout=self._timeout_request)
-        time.sleep(TIME_DELAY_S2_API)
+        time.sleep(DELAY_S2_API)
         response.raise_for_status()
         data = response.json()
         return data if isinstance(data, list) else list(data)
@@ -428,11 +436,13 @@ class S2Client:
         """
         url = f"{BASE_URL_DATASETS}/diffs/{from_release}/to/{to_release}/{dataset_name}"
         logger.info(f"Fetching diff: {from_release} -> {to_release} ({dataset_name})")
+        time.sleep(DELAY_S2_API)
         response = requests.get(
             url,
             headers=self._headers,
             timeout=self._timeout_download,
         )
+        time.sleep(DELAY_S2_API)
         response.raise_for_status()
         return response
 
@@ -537,12 +547,14 @@ class S2Client:
         """
         url = f"{BASE_URL_RECOMMENDATIONS}/paper/{paper_id}"
         logger.debug(f"Recommendations for paper {paper_id} (limit={limit})")
+        time.sleep(DELAY_S2_API)
         response = requests.get(
             url,
             headers=self._headers,
             params={"limit": limit},
             timeout=self._timeout_request,
         )
+        time.sleep(DELAY_S2_API)
         response.raise_for_status()
         return RecommendationsResponse.from_dict(response.json())
 
