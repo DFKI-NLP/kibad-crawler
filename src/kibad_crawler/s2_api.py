@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 import pandas as pd
 import requests
+from retry import retry
 from tqdm import tqdm
 
 from .config import MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY, DELAY_S2_API
@@ -201,6 +202,7 @@ class S2Client:
 
         return out_path
 
+    @retry(delay=10, tries=3)
     def download_file(
         self, url: str, path: Path, chunk_size: int = 10 * 1024, overwrite: bool = False
     ) -> Path:
