@@ -4,6 +4,7 @@ import typer
 from loguru import logger
 
 from kibad_crawler import s2_api
+from kibad_crawler.crawler import Crawler, download_open_access_pdfs
 
 app = typer.Typer()
 
@@ -29,11 +30,12 @@ def list_releases(top_n: int = 10):
 
 
 @app.command()
-def download_papers_metadata(
+def download_papers(
     file_with_issn: str,
     release: str | None = None,
     n_pages: int = 0,
     storage_path: str | None = None,
+    download_open_access: bool = False,
 ):
     """Download papers from Semantic Scholar"""
     assert Path(file_with_issn).exists()
@@ -51,8 +53,16 @@ def download_papers_metadata(
 
     # download paper information from Semantic Scholar
     release_path = s2_client._download_all_papers(
-        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistant=True
+        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistant_storage=True
     )
+
+    # download papers metadata
+    s2_client.download_paper_metadata(path=release_path)
+
+    # download open access PDFs
+    if download_open_access:
+        df_pdfs = s2_client.get_open_access_urls(path=release_path)
+        download_open_access_pdfs(df_pdfs=df_pdfs, path=release_path)
 
 
 if __name__ == "__main__":

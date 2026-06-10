@@ -27,7 +27,7 @@ uv run src/kibad_crawler/main.py list-releases --top-n 10
 
 uv run src/kibad_crawler/main.py download-publication-venues
 
-uv run src/kibad_crawler/main.py download-papers-metadata "FILEPATHTOJOURNALSWITHISSNCODES.csv" --n-pages 2
+uv run src/kibad_crawler/main.py download-papers "FILEPATHTOJOURNALSWITHISSNCODES.csv" --n-pages 1 --download-open-access
 ```
 
 ```bash
@@ -36,7 +36,6 @@ uv run kibad list-releases
 uv run kibad list-releases --top-n 15
 uv run kibad download-publication-venues
 uv run kibad download-publication-venues --release 2026-05-26
-uv run kibad download-papers-metadata --file-with-issn 
 ```
 
 ```mermaid

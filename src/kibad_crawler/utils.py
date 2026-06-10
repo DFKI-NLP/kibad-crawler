@@ -23,13 +23,3 @@ def get_human_readable_size(size: float, index: int = 0) -> str:
     else:
         hr_size = get_human_readable_size(size / 1024.0, index + 1)
     return hr_size
-
-
-@retry(delay=2, tries=5)
-def download_file(url: str, file_path: Path):
-    response = requests.get(url=url, timeout=60, allow_redirects=True)
-    logger.info(
-        f"Downloaded {url} {get_human_readable_size(int(response.headers['Content-Length']))}"
-    )
-    # save it to file_path
-    ...

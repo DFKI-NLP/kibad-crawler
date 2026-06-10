@@ -1,10 +1,11 @@
 """Semantic Scholar API client: datasets, incremental diffs, and recommendations."""
 
-from dataclasses import dataclass
-from datetime import datetime
 import gzip
+import json
 import os
 import time
+from dataclasses import dataclass
+from datetime import datetime
 from io import StringIO
 from pathlib import Path
 from typing import Any, Literal
@@ -147,6 +148,7 @@ class S2Client:
         df_venues = pd.read_json(StringIO(file_content.decode()), lines=True)
         return df_venues
 
+    @retry(delay=2, tries=3)
     def get_dataset_url(
         self, dataset_name: DatasetName, release_id: str | None = None
     ) -> requests.Response:
@@ -164,7 +166,6 @@ class S2Client:
         logger.debug(
             f"Acquiring links for dataset: release='{release_id}' dataset='{dataset_name}'"
         )
-        time.sleep(DELAY_S2_API)
         response = requests.get(url, headers=self._headers, timeout=self._timeout_download)
         time.sleep(DELAY_S2_API)
         response.raise_for_status()
@@ -204,7 +205,12 @@ class S2Client:
 
     @retry(delay=10, tries=3)
     def download_file(
-        self, url: str, path: Path, chunk_size: int = 10 * 1024, overwrite: bool = False
+        self,
+        url: str,
+        path: Path,
+        chunk_size: int = 10 * 1024,
+        overwrite: bool = False,
+        delay: float = DELAY_S2_API,
     ) -> Path:
         """Download file from a `url` and stores it to a `path`.
 
@@ -214,6 +220,7 @@ class S2Client:
             chunk_size (int, optional): Size of chunks to store. Defaults to 10*1024.
             overwrite (bool, optional): Whether or not overwrite a file that
                 has been already downlaoded. Defaults to False.
+            delay (float): Seconds to wait when downloading files. Defaults to DELAY_S2_API,
 
         Returns:
             Path: Path to the stored file.
@@ -228,20 +235,68 @@ class S2Client:
 
         logger.debug(f"Downloading file: '{file_name}' -> '{path}'")
 
-        time.sleep(DELAY_S2_API)
+        time.sleep(delay)
         with requests.get(url, stream=True, allow_redirects=True, timeout=10) as response:
             response.raise_for_status()
             with open(out_path, mode="wb") as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     f.write(chunk)
 
-        time.sleep(DELAY_S2_API)
+        time.sleep(delay)
 
         logger.info(
             f"Downloaded {out_path} {get_human_readable_size(int(response.headers['Content-Length']))}"
         )
 
         return out_path
+
+    def get_open_access_urls(self, path: Path) -> pd.DataFrame:
+        """Read all the JSON files downloaded from S2 and extracts the public
+        URLs to download the papers.
+
+        It is expected a `./json` folder under the `path` parameter where the
+        metadata from the papers is saved in batches of 500 papers for each
+        JSON file.
+
+        Returns paperId, url, status, licence, and disclaimer.
+
+        `status` takes the following values `GOLD`, `CLOSED`, `HYBRID`,
+        `GREEN`, `BRONZE`. More information about the color system in
+        https://en.wikipedia.org/wiki/Open_access#Colour_naming_system
+
+        Args:
+            path (Path): Path to the release with JSON files and metadata
+                downloaded.
+
+        Returns:
+            pd.DataFrame: DataFrame with list of papers with open access URLs.
+        """
+        paper_files = [x for x in (path / "json").glob("*.json")]
+        if len(paper_files) == 1:
+            with open(paper_files[0], "r", encoding="utf-8") as f:
+                data = json.load(f)
+            df_all_papers = pd.json_normalize(data)
+        else:
+            dfs = []
+            for file in paper_files:
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                dfs.append(pd.json_normalize(data))
+
+            # Create a single DataFrame with all the papers
+            df_all_papers = pd.concat(dfs)
+
+        # Filter to papers with open access URL
+        df_pdfs = df_all_papers[df_all_papers["openAccessPdf.url"] != ""][
+            [
+                "paperId",
+                "openAccessPdf.url",
+                "openAccessPdf.status",
+                "openAccessPdf.license",
+                "openAccessPdf.disclaimer",
+            ]
+        ]
+        return df_pdfs
 
     def download_paper_batch(
         self,
@@ -279,7 +334,7 @@ class S2Client:
         df_papers["publicationdate"] = pd.to_datetime(df_papers["publicationdate"])
         df_papers = df_papers[df_papers["publicationdate"] >= date_filter]
         df_papers.to_csv(csv_path, index=False)
-        logger.info(f"Wrote {csv_path} ({len(df_papers)} rows)")
+        logger.info(f"'{csv_path}' filtered with ({len(df_papers)} papers)")
 
         if not persistant:
             os.remove(file_path)
@@ -293,7 +348,7 @@ class S2Client:
         *,
         start_date: str = "2023-01-01",
         # end_date: str | None = None,
-        persistant: bool = False,
+        persistant_storage: bool = False,
     ) -> Path:
         """Download all the files from a list of urls.
 
@@ -321,13 +376,13 @@ class S2Client:
         if n_pages > 0:
             file_list = file_list[:n_pages]
         logger.info(f"Downloading {len(file_list)} paper files to {release_path}")
-        for url in tqdm(file_list, total=len(file_list)):
+        for url in tqdm(file_list, total=len(file_list), desc="Downloading from paper dataset"):
             self.download_paper_batch(
                 url=url,
                 release_path=release_path,
                 publication_venue_ids=publication_venue_ids,
                 start_date=start_date,
-                persistant=persistant,
+                persistant=persistant_storage,
             )
 
         return release_path / "papers"
@@ -374,6 +429,34 @@ class S2Client:
                 persistant=persistant,
             )
 
+    def download_paper_metadata(self, path: Path):
+        """Collects a list of filtered papers and download its metadata in
+        batches of 500 papers at a time.
+
+        Args:
+            path (Path): Path where CSV files with the filtered papers are.
+        """
+        paper_files = [x for x in (path).glob("*.csv")]
+        dfs = [pd.read_csv(f) for f in paper_files]
+        df_all_papers = pd.concat(dfs)
+
+        paper_ids = [x.split("/")[-1] for x in df_all_papers["url"]]
+
+        json_path = path / "json"
+        json_path.mkdir(parents=True, exist_ok=True)
+
+        for i, group in tqdm(
+            enumerate(chunker(paper_ids, MAX_NUM_BULK_PAPERS)),
+            total=int(len(paper_ids) / MAX_NUM_BULK_PAPERS),
+            desc="Dowloading metadata",
+        ):
+            response_batch = self.download_bulk_paper(group)
+
+            json_file = json_path / f"papers-metadata-{i}.json"
+            with open(str(json_file), "w", encoding="utf-8") as f:
+                json.dump(response_batch.json(), f)
+
+    @retry(delay=2, tries=3)
     def download_bulk_paper(
         self,
         paper_ids: list[str],
@@ -407,11 +490,11 @@ class S2Client:
 
     # Releases
 
+    @retry(delay=2, tries=3)
     def get_releases(self) -> list[str]:
         """Return list of release IDs (YYYY-MM-DD), oldest first. Latest is last."""
         url = f"{BASE_URL_DATASETS}/release"
         logger.debug(f"Fetching releases: {url}")
-        time.sleep(DELAY_S2_API)
         response = requests.get(url, headers=self._headers, timeout=self._timeout_request)
         time.sleep(DELAY_S2_API)
         response.raise_for_status()
