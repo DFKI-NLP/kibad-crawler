@@ -161,3 +161,7 @@ To download new publications the process is the following:
 - [API Tutorial](https://www.semanticscholar.org/product/api/tutorial)
 - [full-dataset.py](https://github.com/allenai/s2-folks/blob/main/examples/python/s2ag_datasets/full-datasets.py) example
 - [How to download full datasets](https://www.semanticscholar.org/product/api/tutorial#download-full-datasets)
+
+# Contributing
+
+For project development and contribution guidelines, please refer to [CONTRIBUTING.md](/docs/CONTRIBUTING.md).
