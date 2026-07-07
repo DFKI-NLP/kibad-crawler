@@ -1,0 +1,131 @@
+# Priorities are like stages at which hooks run. Hooks using the same priority run simultaneously.
+# Hooks running simultaneously may run into conflicts when operating on/ changing the same files!
+
+exclude: "^data/.*|^tests/fixtures/.*"
+
+repos:
+  # Core housekeeping
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        priority: 0
+      - id: end-of-file-fixer
+        priority: 1
+      - id: check-docstring-first
+        priority: 2
+      - id: check-yaml
+        priority: 3
+      - id: debug-statements
+        priority: 4
+      - id: detect-private-key
+        priority: 5
+      - id: check-executables-have-shebangs
+        priority: 6
+      - id: check-toml
+        priority: 7
+      - id: check-case-conflict
+        priority: 8
+      - id: check-added-large-files
+        priority: 9
+
+  # Black (reads [tool.black] from pyproject.toml)
+  - repo: https://github.com/psf/black
+    rev: 25.9.0
+    hooks:
+      - id: black
+        priority: 10
+
+  # isort (reads [tool.isort] from pyproject.toml)
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+        priority: 20
+
+  # pyupgrade (no TOML config; keep args here)
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.20.0
+    hooks:
+      - id: pyupgrade
+        args: ["--py310-plus"]
+        priority: 30
+
+  # Flake8 (reads [tool.flake8] via plugin)
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        priority: 40
+        additional_dependencies:
+          - flake8-pyproject
+
+  # Strip Jupyter outputs
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
+        priority: 50
+
+  # Run tools on notebooks via nbQA (inherits configs)
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.9.1
+    hooks:
+      - id: nbqa-black
+        priority: 10  # run when black runs
+      - id: nbqa-isort
+        priority: 20  # run when isort runs
+      - id: nbqa-flake8
+        priority: 40  # run when flake8 runs
+
+  # Markdown formatter (reads [tool.mdformat] via plugin)
+  - repo: https://github.com/hukkin/mdformat
+    rev: 0.7.22
+    hooks:
+      - id: mdformat
+        priority: 70  # run when black runs
+        additional_dependencies:
+          - mdformat-gfm
+          - mdformat-tables
+          - mdformat_frontmatter
+          - mdformat-pyproject
+          - mdformat-mkdocs
+
+  # Security linter (reads [tool.bandit] from pyproject.toml)
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.8.6"
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]          # tell bandit to read pyproject
+        additional_dependencies: ["bandit[toml]"]  # ensure TOML support
+        priority: 80
+
+  # Spelling checker (reads [tool.codespell] from pyproject.toml)
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+        # For Python < 3.11, TOML parsing needs tomli
+        additional_dependencies: ["tomli"]
+        priority: 80  # run when bandit runs
+
+  - repo: local
+    hooks:
+      - id: zuban-mypy
+        name: zuban mypy
+        language: python
+        entry: zuban
+        args: [mypy, --config-file=pyproject.toml]
+        types: [python]
+        pass_filenames: false
+        priority: 80  # run when bandit runs
+
+#  - repo: local
+#    hooks:
+#      - id: check-mkdocs
+#        name: check-mkdocs (uv)
+#        entry: uv run --group cicd check-mkdocs
+#        args: ["--config", "properdocs.yml"]  # Optional, mkdocs.yml is the default
+#        language: system
+#        pass_filenames: false
+#        priority: 90
