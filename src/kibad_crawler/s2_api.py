@@ -21,12 +21,16 @@ from .config import DELAY_S2_API, MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY
 from .relevance import filter_papers
 from .s2_models import DiffResponse, RecommendationsResponse, RelevanceFilter
 
+logger: Any
+
 try:
-    from loguru import logger
+    from loguru import logger as logger_logger
 except ImportError:
     import logging
 
     logger = logging.getLogger(__name__)
+else:
+    logger = logger_logger
 
 
 DatasetName = Literal[
