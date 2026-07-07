@@ -212,7 +212,8 @@ notebooks/*.csv
 
 # macOS
 *._DStore
+*.DS_Store
 
 # Personal vscode configuration
 .vscode/settings.json
-uv.lock
+!/data/raw/Journals.csv
