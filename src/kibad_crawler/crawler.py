@@ -1,10 +1,10 @@
-import time
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
-import requests
 from loguru import logger
 from pandas import DataFrame
+import requests
 from retry import retry
 from tqdm import tqdm
 

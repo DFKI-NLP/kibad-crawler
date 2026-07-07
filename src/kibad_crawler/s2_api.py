@@ -1,13 +1,13 @@
 """Semantic Scholar API client: datasets, incremental diffs, and recommendations."""
 
-import gzip
-import json
-import os
-import time
 from dataclasses import dataclass
 from datetime import datetime
+import gzip
 from io import StringIO
+import json
+import os
 from pathlib import Path
+import time
 from typing import Any, Literal
 
 import pandas as pd
@@ -15,10 +15,11 @@ import requests
 from retry import retry
 from tqdm import tqdm
 
-from .config import MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY, DELAY_S2_API
+from kibad_crawler.utils import get_human_readable_size
+
+from .config import DELAY_S2_API, MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY
 from .relevance import filter_papers
 from .s2_models import DiffResponse, RecommendationsResponse, RelevanceFilter
-from kibad_crawler.utils import get_human_readable_size
 
 try:
     from loguru import logger
@@ -273,13 +274,13 @@ class S2Client:
         """
         paper_files = [x for x in (path / "json").glob("*.json")]
         if len(paper_files) == 1:
-            with open(paper_files[0], "r", encoding="utf-8") as f:
+            with open(paper_files[0], encoding="utf-8") as f:
                 data = json.load(f)
             df_all_papers = pd.json_normalize(data)
         else:
             dfs = []
             for file in paper_files:
-                with open(file, "r", encoding="utf-8") as f:
+                with open(file, encoding="utf-8") as f:
                     data = json.load(f)
                 dfs.append(pd.json_normalize(data))
 

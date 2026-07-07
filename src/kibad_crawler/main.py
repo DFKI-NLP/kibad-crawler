@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import typer
 from loguru import logger
+import typer
 
 from kibad_crawler import s2_api
 from kibad_crawler.crawler import Crawler, download_open_access_pdfs
