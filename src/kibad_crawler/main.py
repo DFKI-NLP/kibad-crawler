@@ -53,7 +53,7 @@ def download_papers(
 
     # download paper information from Semantic Scholar
     release_path = s2_client._download_all_papers(
-        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistant_storage=True
+        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
     )
 
     # download papers metadata

@@ -220,7 +220,7 @@ class S2Client:
             path (Path): Path where to store the downloaded file.
             chunk_size (int, optional): Size of chunks to store. Defaults to 10*1024.
             overwrite (bool, optional): Whether or not overwrite a file that
-                has been already downlaoded. Defaults to False.
+                has been already downloaded. Defaults to False.
             delay (float): Seconds to wait when downloading files. Defaults to DELAY_S2_API,
 
         Returns:
@@ -305,7 +305,7 @@ class S2Client:
         release_path: Path,
         publication_venue_ids: list[str],
         *,
-        persistant: bool = False,
+        persistent: bool = False,
         start_date: str = "2023-01-01",
     ) -> None:
         """Download a single file of the papers dataset.
@@ -314,7 +314,7 @@ class S2Client:
             url (str): URL of the papers dataset file.
             release_path (Path): Base path for this release (papers and CSV go under here).
             publication_venue_ids (list): List of venue IDs to keep.
-            persistant (bool, optional): If False, remove the downloaded .gz after filtering.
+            persistent (bool, optional): If False, remove the downloaded .gz after filtering.
             start_date (str, optional): Only keep papers with publication date >= this (YYYY-MM-DD).
         """
         file_name = url.split("?")[0].split("/")[-1]
@@ -337,7 +337,7 @@ class S2Client:
         df_papers.to_csv(csv_path, index=False)
         logger.info(f"'{csv_path}' filtered with ({len(df_papers)} papers)")
 
-        if not persistant:
+        if not persistent:
             os.remove(file_path)
             logger.debug(f"Removed {file_path}")
 
@@ -349,7 +349,7 @@ class S2Client:
         *,
         start_date: str = "2023-01-01",
         # end_date: str | None = None,
-        persistant_storage: bool = False,
+        persistent_storage: bool = False,
     ) -> Path:
         """Download all the files from a list of urls.
 
@@ -362,7 +362,7 @@ class S2Client:
             release_path (Path): Base path for this release.
             publication_venue_ids (list): List of publication venue ids.
             start_date (str, optional): Only keep papers with publication date >= this.
-            persistant (bool, optional): If False, delete each .gz after filtering.
+            persistent (bool, optional): If False, delete each .gz after filtering.
         """
         # Get a list of paper url
         # Download and save the to disk
@@ -383,7 +383,7 @@ class S2Client:
                 release_path=release_path,
                 publication_venue_ids=publication_venue_ids,
                 start_date=start_date,
-                persistant=persistant_storage,
+                persistent=persistent_storage,
             )
 
         return release_path / "papers"
@@ -396,7 +396,7 @@ class S2Client:
         release_id: str | None = None,
         *,
         start_date: str = "2023-01-01",
-        persistant: bool = False,
+        persistent: bool = False,
     ) -> None:
         """Download all the files from a list of urls.
 
@@ -409,7 +409,7 @@ class S2Client:
             release_path (Path): Base path for this release.
             publication_venue_ids (list): List of publication venue ids.
             start_date (str, optional): Only keep papers with publication date >= this.
-            persistant (bool, optional): If False, delete each .gz after filtering.
+            persistent (bool, optional): If False, delete each .gz after filtering.
         """
         # Get a list of paper url
         # Download and save the to disk
@@ -427,7 +427,7 @@ class S2Client:
                 release_path=release_path,
                 publication_venue_ids=publication_venue_ids,
                 start_date=start_date,
-                persistant=persistant,
+                persistent=persistent,
             )
 
     def download_paper_metadata(self, path: Path):
@@ -449,7 +449,7 @@ class S2Client:
         for i, group in tqdm(
             enumerate(chunker(paper_ids, MAX_NUM_BULK_PAPERS)),
             total=int(len(paper_ids) / MAX_NUM_BULK_PAPERS),
-            desc="Dowloading metadata",
+            desc="Downloading metadata",
         ):
             response_batch = self.download_bulk_paper(group)
 
@@ -693,7 +693,7 @@ def download_paper_batch(
     url: str,
     release_path: Path,
     publication_venue_ids: list,
-    persistant: bool = False,
+    persistent: bool = False,
     start_date: str = "2023-01-01",
 ) -> None:
     """Download a single papers dataset file; filter by venue/date; save CSV. See S2Client.download_paper_batch."""
@@ -701,7 +701,7 @@ def download_paper_batch(
         url=url,
         release_path=release_path,
         publication_venue_ids=publication_venue_ids,
-        persistant=persistant,
+        persistent=persistent,
         start_date=start_date,
     )
 
@@ -711,7 +711,7 @@ def download_all_papers(
     release_path: Path,
     publication_venue_ids: list[str],
     start_date: str = "2023-01-01",
-    persistant: bool = False,
+    persistent: bool = False,
 ) -> None:
     """Download all paper files; filter by venue/date; save CSVs. See S2Client.download_all_papers."""
     _client().download_all_papers(
@@ -719,7 +719,7 @@ def download_all_papers(
         release_path=release_path,
         publication_venue_ids=publication_venue_ids,
         start_date=start_date,
-        persistant=persistant,
+        persistent=persistent,
     )
 
 
