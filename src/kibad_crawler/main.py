@@ -5,7 +5,7 @@ from loguru import logger
 import typer
 
 from kibad_crawler import s2_api
-from kibad_crawler.crawler import Crawler, download_open_access_pdfs
+from kibad_crawler.crawler import download_open_access_pdfs
 
 app = typer.Typer()
 
@@ -30,7 +30,11 @@ def download_publication_venues(
 
 
 @app.command()
-def list_releases(top_n: Annotated[int, typer.Argument()] = 10):
+def list_releases(
+    top_n: Annotated[
+        int, typer.Option(help="Number of release names to show in descending order.")
+    ] = 10,
+):
     """Shows the latest top_n releases from the datasets"""
     s2_client = s2_api.S2Client()
     logger.info(
@@ -40,14 +44,40 @@ def list_releases(top_n: Annotated[int, typer.Argument()] = 10):
 
 @app.command()
 def download_papers(
-    file_with_issn: str,
-    release: str | None = None,
-    n_pages: int = 0,
-    storage_path: str | None = None,
-    download_open_access: bool = False,
+    file_with_issn: Annotated[
+        str | None,
+        typer.Option(
+            help="CSV file with ISSN codes of publication venues used to filter publications from those venues."
+        ),
+    ] = None,
+    release: Annotated[
+        str | None,
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. The latest release is used in case no release is provided."
+        ),
+    ] = None,
+    n_pages: Annotated[
+        int,
+        typer.Option(
+            help="Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available."
+        ),
+    ] = 0,
+    storage_path: Annotated[
+        str | None,
+        typer.Option(
+            help="Relative or absolute path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'."
+        ),
+    ] = None,
+    download_open_access: Annotated[
+        bool,
+        typer.Option(
+            help="Whether or not to download the PDF files of the available open access URLs."
+        ),
+    ] = False,
 ):
     """Download papers from Semantic Scholar"""
-    assert Path(file_with_issn).exists()
+    if file_with_issn:
+        assert Path(file_with_issn).exists()
 
     # initialization of the client
     s2_client = s2_api.S2Client(storage_path=storage_path)
