@@ -85,23 +85,24 @@ def download_papers(
 
     # publication venues dataset
     df_venues = s2_client.get_publication_venues(release_id=release)
-    publication_venue_ids = s2_api.get_publication_venue_id_from_issn_codes(
-        file_path=file_with_issn,
-        df_venues=df_venues,
-    )
+    if file_with_issn:
+        publication_venue_ids = s2_api.get_publication_venue_id_from_issn_codes(
+            file_path=file_with_issn,
+            df_venues=df_venues,
+        )
 
-    # download paper information from Semantic Scholar
-    release_path = s2_client._download_all_papers(
-        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
-    )
+        # download paper information from Semantic Scholar
+        release_path = s2_client._download_all_papers(
+            publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
+        )
 
-    # download papers metadata
-    s2_client.download_paper_metadata(path=release_path)
+        # download papers metadata
+        s2_client.download_paper_metadata(path=release_path)
 
-    # download open access PDFs
-    if download_open_access:
-        df_pdfs = s2_client.get_open_access_urls(path=release_path)
-        download_open_access_pdfs(df_pdfs=df_pdfs, path=release_path)
+        # download open access PDFs
+        if download_open_access:
+            df_pdfs = s2_client.get_open_access_urls(path=release_path)
+            download_open_access_pdfs(df_pdfs=df_pdfs, path=release_path)
 
 
 if __name__ == "__main__":
