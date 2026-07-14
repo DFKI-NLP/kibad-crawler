@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Annotated
 
 from loguru import logger
 import typer
@@ -11,8 +12,16 @@ app = typer.Typer()
 
 @app.command()
 def download_publication_venues(
-    release: str | None = None,
-    storage_path: str | None = None,
+    release: Annotated[
+        str | None,
+        typer.Option(help="Release version from Semantic Scholar with format 'YYYY-MM-DD'."),
+    ] = None,
+    storage_path: Annotated[
+        str | None,
+        typer.Option(
+            help="Relative or absolute path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'."
+        ),
+    ] = None,
 ):
     """Downloads the publication venues of a given Semantic Scholar release"""
     s2_client = s2_api.S2Client(storage_path=storage_path)
@@ -21,7 +30,7 @@ def download_publication_venues(
 
 
 @app.command()
-def list_releases(top_n: int = 10):
+def list_releases(top_n: Annotated[int, typer.Argument()] = 10):
     """Shows the latest top_n releases from the datasets"""
     s2_client = s2_api.S2Client()
     logger.info(
