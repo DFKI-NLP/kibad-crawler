@@ -21,3 +21,11 @@ uv run --group cicd prek run -a
 ```
 
 This runs all configured [prek](https://prek.j178.dev/) hooks (see [pre-commit-config.yaml](/.pre-commit-config.yaml)) on all files. Some hooks may fix issues automatically, others will report issues that need to be fixed manually.
+
+To run all Python tests with `pytest`:
+
+```bash
+uv run pytest
+# if you have not run 'uv sync --group cicd' previously, use instead
+uv run --group cicd pytest
+```
