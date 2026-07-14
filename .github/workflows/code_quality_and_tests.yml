@@ -1,0 +1,69 @@
+name: Code Quality and Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, "release/*"]
+
+env:
+  FORCE_COLOR: "1"
+
+jobs:
+  prek:
+    name: Code quality checks
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Set up python & uv
+        uses: ./.github/actions/init-env
+        with:
+          os: "ubuntu-latest"
+          python: "3.12"
+      - name: Compute prek cache key
+        id: prek-cache
+        shell: python
+        run: |
+          import hashlib
+          import sys
+          import os
+          python = "py{}.{}".format(*sys.version_info[:2])
+          payload = sys.version.encode() + sys.executable.encode()
+          digest = hashlib.sha256(payload).hexdigest()
+          result = "${{ runner.os }}-{}-{}-prek".format(python, digest[:8])
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write(f"result={result}\n")
+      - name: Restore prek cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/prek
+          key: ${{ steps.prek-cache.outputs.result }}-${{ hashFiles('.prek-config.yaml') }}
+          restore-keys: |
+            ${{ steps.prek-cache.outputs.result }}-
+      - name: Run preks
+        run: |
+          uv run --group cicd prek run -a
+        shell: bash
+
+# TODO: Uncomment when we have converted the unittests to pytest
+#  pytest:
+#    name: Tests with Python ${{ matrix.python }} / ${{ matrix.os }}
+#    runs-on: ${{ matrix.os }}
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        include:
+#          - { python: "3.12", os: "ubuntu-latest" }
+#          - { python: "3.13", os: "ubuntu-latest" }
+#          - { python: "3.14", os: "ubuntu-latest" }
+#    steps:
+#      - name: Check out the repository
+#        uses: actions/checkout@v4
+#      - name: Set up python & uv
+#        uses: ./.github/actions/init-env
+#        with:
+#          os: ${{ matrix.os }}
+#          python: ${{ matrix.python }}
+#      - name: Run 'not slow' tests with coverage
+#        run: |
+#          uv run --group cicd pytest -m "not slow" --cov=kibad_llm --cov-report=term-missing

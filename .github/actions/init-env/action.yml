@@ -1,0 +1,34 @@
+# This action mostly follows steps described here https://github.com/marketplace/actions/install-poetry-action and then was adapted to uv
+
+name: Init
+description: Set up python environment
+inputs:
+  os:
+    type: string
+    required: true
+  python:
+    type: string
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+
+    #----------------------------------------------
+    #       set-up python
+    #----------------------------------------------
+    - name: Set up Python ${{ inputs.python }}
+      id: setup-python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python }}
+
+    #----------------------------------------------
+    #  -----  install & configure uv  -----
+    #----------------------------------------------
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        version: "0.9.26"
+        enable-cache: true
+        python-version: ${{ inputs.python }}
