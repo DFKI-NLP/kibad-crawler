@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import typer
 from loguru import logger
+import typer
 
 from kibad_crawler import s2_api
 from kibad_crawler.crawler import Crawler, download_open_access_pdfs
@@ -53,7 +53,7 @@ def download_papers(
 
     # download paper information from Semantic Scholar
     release_path = s2_client._download_all_papers(
-        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistant_storage=True
+        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
     )
 
     # download papers metadata

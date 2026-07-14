@@ -1,7 +1,7 @@
 from pathlib import Path
 
-import requests
 from loguru import logger
+import requests
 from retry import retry
 
 

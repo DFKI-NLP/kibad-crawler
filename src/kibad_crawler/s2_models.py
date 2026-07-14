@@ -74,7 +74,7 @@ class RecommendationsResponse:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RecommendationsResponse":
-        recs = data.get("recommendations") or data.get("papers") or []
+        recs: dict | list = data.get("recommendations") or data.get("papers") or []
         if isinstance(recs, list):
             return cls(recommendations=[r for r in recs if isinstance(r, dict)])
         return cls()

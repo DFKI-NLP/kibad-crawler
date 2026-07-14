@@ -4,12 +4,12 @@ from unittest.mock import MagicMock, patch
 
 from kibad_crawler.s2_api import (
     S2Client,
+    _client,
     chunker,
     download_bulk_paper,
     download_dataset,
     download_file,
 )
-from kibad_crawler.s2_api import _client
 
 
 def test_chunker():

@@ -1,10 +1,10 @@
-import time
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
-import requests
 from loguru import logger
 from pandas import DataFrame
+import requests
 from retry import retry
 from tqdm import tqdm
 
@@ -68,7 +68,7 @@ class Crawler:
             chunk_size (int, optional): Size of chunks to store. Defaults to 10*1024.
             file_name (str): Name of the file without path.
             overwrite (bool, optional): Whether or not overwrite a file that
-                has been already downlaoded. Defaults to False.
+                has been already downloaded. Defaults to False.
             delay (float): Seconds to wait when downloading files. Defaults to DELAY_S2_API,
 
         Returns:

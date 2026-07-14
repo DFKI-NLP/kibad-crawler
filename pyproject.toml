@@ -37,12 +37,8 @@ dependencies = [
 
 [dependency-groups]
 cicd = [
-    "pytest>=6.2.5",
-    "pytest-xdist>=3.8.0,<4",
-    "pytest-cov>=6.2.1,<7",
-    "typeguard>=2.13.3",
-    "pre-commit>=2.16.0",
-    "mypy>=1.3.0",
+    "prek>=0.3.8",
+    "zuban>=0.6.2",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -88,7 +84,7 @@ exclude = '''
 
 [tool.isort]
 profile = "black"
-known_first_party = ["kibad_llm"]
+known_first_party = ["kibad_crawler"]
 force_sort_within_sections = true
 
 [tool.flake8]
@@ -97,7 +93,7 @@ max-line-length = 99
 exclude = [".git", "notebooks", "models", "data", "logs"]
 
 [tool.codespell]
-skip = "logs/**,data/**,configs/**/*template*,configs/evaluate.yaml,tests/fixtures/**.json,tests/fixtures/**.jsonl,src/kibad_llm/schema/**,tests/unit/schema/**,*.ipynb"
+skip = "logs/**,data/**,tests/fixtures/**.json,tests/fixtures/**.jsonl,*.ipynb"
 ignore-words-list = "hist"
 
 # Bandit (read by pre-commit bandit with -c pyproject.toml)
@@ -125,12 +121,12 @@ flake8 = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.14"
 files = ["src", "tests"]
 
-[[tool.mypy.overrides]]
-module = ["pymupdf4llm.*", "datasets.*", "llama_index.llms.openai_like.*"]
-follow_untyped_imports = true
+#[[tool.mypy.overrides]]
+#module = ["pymupdf4llm.*", "datasets.*", "llama_index.llms.openai_like.*"]
+#follow_untyped_imports = true
 
 [tool.pylint.messages_control]
 disable = [
