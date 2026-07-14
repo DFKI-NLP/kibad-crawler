@@ -718,6 +718,7 @@ def download_all_papers(
     persistent: bool = False,
 ) -> None:
     """Download all paper files; filter by venue/date; save CSVs. See S2Client.download_all_papers."""
+    # TODO Add a min publication date and a max publication date to filter papers
     _client().download_all_papers(
         file_list=file_list,
         release_path=release_path,

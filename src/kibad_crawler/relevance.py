@@ -68,13 +68,13 @@ def _passes_fields_of_study_filter(paper: dict, criteria: RelevanceFilter) -> bo
     """Check at least one of the requested fields in fieldsOfStudy / s2FieldsOfStudy."""
     if not criteria.fields_of_study:
         return True
-    fos = paper.get("fieldsOfStudy") or paper.get("s2FieldsOfStudy") or []
-    if not isinstance(fos, list):
+    fields_of_study: dict | list = paper.get("fieldsOfStudy") or paper.get("s2FieldsOfStudy") or []
+    if not isinstance(fields_of_study, list):
         return False
     want = {s.strip().lower() for s in criteria.fields_of_study if s}
     if not want:
         return True
-    for f in fos:
+    for f in fields_of_study:
         if isinstance(f, str) and f.lower() in want:
             return True
     return False
