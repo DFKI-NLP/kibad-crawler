@@ -14,12 +14,14 @@ app = typer.Typer()
 def download_publication_venues(
     release: Annotated[
         str | None,
-        typer.Option(help="Release version from Semantic Scholar with format 'YYYY-MM-DD'."),
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case is not provided."
+        ),
     ] = None,
     storage_path: Annotated[
         str | None,
         typer.Option(
-            help="Relative or absolute path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'."
+            help="Absolute or relative path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'. It will use the './data/raw/' folder in the root folder of the repository if not provided."
         ),
     ] = None,
 ):
@@ -47,7 +49,7 @@ def download_papers(
     file_with_issn: Annotated[
         str | None,
         typer.Option(
-            help="CSV file with ISSN codes of publication venues used to filter publications from those venues."
+            help="CSV file with ISSN codes of publication venues used to filter publications from those venues. It will search it in './data/raw/Journals.csv' if it is not provided."
         ),
     ] = None,
     release: Annotated[
@@ -59,19 +61,19 @@ def download_papers(
     n_pages: Annotated[
         int,
         typer.Option(
-            help="Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available."
+            help="Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available per release."
         ),
     ] = 0,
     storage_path: Annotated[
         str | None,
         typer.Option(
-            help="Relative or absolute path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'."
+            help="Absolute or relative path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'. It will use the './data/raw/' folder in the root folder of the repository if not provided."
         ),
     ] = None,
     download_open_access: Annotated[
         bool,
         typer.Option(
-            help="Whether or not to download the PDF files of the available open access URLs."
+            help="Whether or not to download the PDF files of the available open access URLs. The PDF files will be stored in the 'storage_path'."
         ),
     ] = False,
 ):
