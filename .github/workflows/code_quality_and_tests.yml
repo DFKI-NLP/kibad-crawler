@@ -45,25 +45,24 @@ jobs:
           uv run --group cicd prek run -a
         shell: bash
 
-# TODO: Uncomment when we have converted the unittests to pytest
-#  pytest:
-#    name: Tests with Python ${{ matrix.python }} / ${{ matrix.os }}
-#    runs-on: ${{ matrix.os }}
-#    strategy:
-#      fail-fast: false
-#      matrix:
-#        include:
-#          - { python: "3.12", os: "ubuntu-latest" }
-#          - { python: "3.13", os: "ubuntu-latest" }
-#          - { python: "3.14", os: "ubuntu-latest" }
-#    steps:
-#      - name: Check out the repository
-#        uses: actions/checkout@v4
-#      - name: Set up python & uv
-#        uses: ./.github/actions/init-env
-#        with:
-#          os: ${{ matrix.os }}
-#          python: ${{ matrix.python }}
-#      - name: Run 'not slow' tests with coverage
-#        run: |
-#          uv run --group cicd pytest -m "not slow" --cov=kibad_llm --cov-report=term-missing
+  pytest:
+    name: Tests with Python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { python: "3.12", os: "ubuntu-latest" }
+          - { python: "3.13", os: "ubuntu-latest" }
+          - { python: "3.14", os: "ubuntu-latest" }
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Set up python & uv
+        uses: ./.github/actions/init-env
+        with:
+          os: ${{ matrix.os }}
+          python: ${{ matrix.python }}
+      - name: Run 'not slow' tests with coverage
+        run: |
+          uv run --group cicd pytest -m "not slow"
