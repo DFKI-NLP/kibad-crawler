@@ -104,6 +104,13 @@ class S2Client:
         storage_path: str | None = None,
     ):
         self._api_key = api_key or S2_API_KEY
+        if self._api_key is not None:
+            logger.info("Semantic Scholar API key found")
+            logger.info(f"'{self.latest_release}' is the latest release")
+        else:
+            logger.info(
+                "Semantic Scholar API key not found. Please add an API key or go to https://www.semanticscholar.org/product/api to request an API key."
+            )
         self._timeout_download = timeout_download
         self._timeout_request = timeout_request
         self._headers = {"x-api-key": self._api_key} if self._api_key else {}
@@ -112,14 +119,6 @@ class S2Client:
             self._storage_path = Path(storage_path)
         else:
             self._storage_path = RAW_DATA_DIR / "semantic_scholar" / "release"
-
-        if self._api_key is not None:
-            logger.info("Semantic Scholar API key found")
-            logger.info(f"'{self.latest_release}' is the latest release")
-        else:
-            logger.info(
-                "Semantic Scholar API not key found. Please add an API key or go to https://www.semanticscholar.org/product/api to request an API key."
-            )
 
     @property
     def releases(self) -> list[str]:
