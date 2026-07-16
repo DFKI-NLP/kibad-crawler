@@ -15,7 +15,7 @@ def download_publication_venues(
     release: Annotated[
         str | None,
         typer.Option(
-            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case is not provided."
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
         ),
     ] = None,
     storage_path: Annotated[
