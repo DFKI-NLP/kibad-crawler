@@ -47,11 +47,11 @@ def list_releases(
 @app.command()
 def download_papers(
     file_with_issn: Annotated[
-        str | None,
+        str,
         typer.Option(
-            help="CSV file with ISSN codes of publication venues used to filter publications from those venues. It will search it in './data/raw/Journals.csv' if it is not provided."
+            help="CSV file with ISSN codes of publication venues used to filter publications from those venues."
         ),
-    ] = None,
+    ],
     release: Annotated[
         str | None,
         typer.Option(
@@ -78,8 +78,6 @@ def download_papers(
     ] = False,
 ):
     """Download papers from Semantic Scholar"""
-    if file_with_issn:
-        assert Path(file_with_issn).exists()
 
     # initialization of the client
     s2_client = s2_api.S2Client(storage_path=storage_path)
@@ -87,24 +85,24 @@ def download_papers(
 
     # publication venues dataset
     df_venues = s2_client.get_publication_venues(release_id=release)
-    if file_with_issn:
-        publication_venue_ids = s2_api.get_publication_venue_id_from_issn_codes(
-            file_path=file_with_issn,
-            df_venues=df_venues,
-        )
 
-        # download paper information from Semantic Scholar
-        release_path = s2_client._download_all_papers(
-            publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
-        )
+    publication_venue_ids = s2_api.get_publication_venue_id_from_issn_codes(
+        file_path=file_with_issn,
+        df_venues=df_venues,
+    )
 
-        # download papers metadata
-        s2_client.download_paper_metadata(path=release_path)
+    # download paper information from Semantic Scholar
+    release_path = s2_client._download_all_papers(
+        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
+    )
 
-        # download open access PDFs
-        if download_open_access:
-            df_pdfs = s2_client.get_open_access_urls(path=release_path)
-            download_open_access_pdfs(df_pdfs=df_pdfs, path=release_path)
+    # download papers metadata
+    s2_client.download_paper_metadata(path=release_path)
+
+    # download open access PDFs
+    if download_open_access:
+        df_pdfs = s2_client.get_open_access_urls(path=release_path)
+        download_open_access_pdfs(df_pdfs=df_pdfs, path=release_path)
 
 
 if __name__ == "__main__":
