@@ -136,4 +136,4 @@ disable = [
 ]
 
 [project.scripts]
-kibad = 'kibad_crawler.main:app'
+kibad-crawler = 'kibad_crawler.main:app'

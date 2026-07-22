@@ -31,11 +31,11 @@ uv run src/kibad_crawler/main.py download-papers "FILEPATHTOJOURNALSWITHISSNCODE
 ```
 
 ```bash
-uv run kibad --help
-uv run kibad list-releases
-uv run kibad list-releases --top-n 15
-uv run kibad download-publication-venues
-uv run kibad download-publication-venues --release 2026-05-26
+uv run kibad-crawler --help
+uv run kibad-crawler list-releases
+uv run kibad-crawler list-releases --top-n 15
+uv run kibad-crawler download-publication-venues
+uv run kibad-crawler download-publication-venues --release 2026-05-26
 ```
 
 ```mermaid
