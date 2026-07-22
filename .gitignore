@@ -207,8 +207,11 @@ marimo/_lsp/
 __marimo__/
 
 # Data: ignore everything under /data by default
-data/*
 notebooks/*.csv
+data/*
+!data/raw/
+data/raw/*
+!data/raw/Journals.csv
 
 # macOS
 *._DStore
@@ -216,4 +219,3 @@ notebooks/*.csv
 
 # Personal vscode configuration
 .vscode/settings.json
-!/data/raw/Journals.csv
