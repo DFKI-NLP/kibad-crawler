@@ -100,10 +100,10 @@ def download_links_incremental_diffs(
         update to.
     - diffs	(list): List of diffs that need to be applied to bring the dataset
         at 'start_release' up to date with 'end_release'.
-        - from_release (str): Basline release for this diff.
+        - from_release (str): Baseline release for this diff.
         - to_release (str): Target release for this diff.
         - update_files (list[str]): List of files that contain updates to the
-            dataset. Each record in these files needs to be insterted or updated.
+            dataset. Each record in these files needs to be inserted or updated.
         - delete_files (list[str]): List of files that contain deletes from the
             dataset. Each record in these files needs to be deleted.
 

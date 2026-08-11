@@ -13,7 +13,7 @@ Some things to note:
 https://api.semanticscholar.org/api-docs/graph
 """
 
-from kibad_crawler.config import S2_API_KEY, MAX_NUM_BATCH_PAPERS
+from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, S2_API_KEY
 from kibad_crawler.utils import api_call_post
 
 URL_BASE = "https://api.semanticscholar.org/graph/v1"
