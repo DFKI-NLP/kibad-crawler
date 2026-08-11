@@ -26,8 +26,11 @@ def download_publication_venues(
     ] = None,
 ):
     """Downloads the publication venues of a given Semantic Scholar release"""
-    s2_client = s2_api.S2Client(storage_path=storage_path)
+    s2_client = s2_api.SemanticScholarAPIClient(storage_path=storage_path)
     release = release or s2_client.latest_release
+    assert (
+        release in s2_client.releases
+    ), f"'{release}' must be a valid release id. i.e.: {[x for x in reversed(s2_client.releases[-3:])]}"
     _ = s2_client.get_publication_venues(release_id=release)
 
 
@@ -38,7 +41,7 @@ def list_releases(
     ] = 10,
 ):
     """Shows the latest top_n releases from the datasets"""
-    s2_client = s2_api.S2Client()
+    s2_client = s2_api.SemanticScholarAPIClient()
     logger.info(
         f"Latest {top_n} of {len(s2_client.releases)} releases: {sorted(s2_client.releases[-top_n:], reverse=True)}"
     )
@@ -80,7 +83,7 @@ def download_papers(
     """Download papers from Semantic Scholar"""
 
     # initialization of the client
-    s2_client = s2_api.S2Client(storage_path=storage_path)
+    s2_client = s2_api.SemanticScholarAPIClient(storage_path=storage_path)
     release = release or s2_client.latest_release
 
     # publication venues dataset

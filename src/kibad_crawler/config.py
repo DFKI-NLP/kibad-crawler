@@ -32,7 +32,7 @@ REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
 S2_API_KEY = os.environ.get("S2_API_KEY", "")
-MAX_NUM_BULK_PAPERS: int = 500
+MAX_NUM_BATCH_PAPERS: int = 500
 DELAY_S2_API = 3
 
 # If tqdm is installed, configure loguru with tqdm.write
