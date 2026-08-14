@@ -1,12 +1,12 @@
-import gzip
-import os
 from dataclasses import dataclass, field
 from datetime import datetime
+import gzip
 from io import StringIO
+import os
 from pathlib import Path
 
-import pandas as pd
 from loguru import logger
+import pandas as pd
 from tqdm import tqdm
 
 from kibad_crawler.semantic_scholar import datasets

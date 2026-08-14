@@ -4,12 +4,12 @@ https://api.semanticscholar.org/api-docs/datasets
 
 import gzip
 from io import StringIO
-from typing import Literal
 from pathlib import Path
+from typing import Literal
 
+from loguru import logger
 import pandas as pd
 import requests
-from loguru import logger
 from retry import retry
 
 from kibad_crawler.config import S2_API_KEY
