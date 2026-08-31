@@ -124,7 +124,7 @@ def download_paper_metadata(
     issn = get_issn_codes(file_with_issn)
     publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
 
-    # Get the links of for the metadat of the papers
+    # Get the links of for the metadata of the papers
     links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
     search_params = PaperSearch(
         publication_venue_ids=publication_venue_ids,  # type: ignore
