@@ -33,8 +33,9 @@ DatasetName = Literal[
 
 
 def get_available_releases() -> list[str]:
-    """Releases are identified by a date stamp such as "2023-08-01". Each
-    release contains full data for each dataset."""
+    """Returns a list with all the available releases.Rreleases are identified
+    by a date stamp such as "2023-08-01". Each release contains full data for
+    each dataset."""
     route = "/release/"
     response = api_call_get(url=URL_BASE + route)
     if response.ok:
@@ -65,6 +66,7 @@ def list_datasets(release_id: str):
     return response.json()
 
 
+@retry(tries=3, delay=2)
 def download_links(release_id: str, dataset_name: DatasetName) -> dict:
     """Datasets are partitioned and stored on S3. Clients can retrieve them
     by requesting this list of pre-signed download urls and fetching all
@@ -189,5 +191,5 @@ def read_publication_venues(file_path: Path) -> pd.DataFrame:
         file_content = f.read()
 
     df_venues = pd.read_json(StringIO(file_content.decode()), lines=True)
-    logger.info(f"`{file_path}` read with {df_venues.shape[0]:,} rows")
+    logger.info(f"`{file_path}` has {df_venues.shape[0]:,} publication venues in total")
     return df_venues

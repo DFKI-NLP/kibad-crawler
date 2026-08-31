@@ -3,6 +3,12 @@
 [![](https://img.shields.io/badge/kanban-black?logo=github)](https://github.com/orgs/DFKI-NLP/projects/2)
 [![kibad-llm](https://img.shields.io/badge/kibad--llm-black?logo=github)](https://github.com/DFKI-NLP/kibad-llm)
 
+The crawler uses Semantic Scholar API to query and downlad papers. It is a two 
+step process:
+
+1. Request the links of a dataset (publication venues, abstracts, papers, etc.). The links have an expiration date.
+2. Download the files using the links before the expiration date.
+
 # Setup
 
 This project requires [uv](https://docs.astral.sh/uv/). If it is not already
@@ -20,6 +26,13 @@ uv sync
 cp .env.example .env
 ```
 
+To download additional papers it is required:
+
+- A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
+  - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
+- A copy in CSV of the file [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097)
+  - Store the CSV file in `./data/raw/journals.csv`
+
 # Usage
 
 ```bash
@@ -27,7 +40,7 @@ uv run src/kibad_crawler/main.py list-releases --top-n 10
 
 uv run src/kibad_crawler/main.py download-publication-venues
 
-uv run src/kibad_crawler/main.py download-papers "FILEPATHTOJOURNALSWITHISSNCODES.csv" --n-pages 1 --download-open-access
+uv run src/kibad_crawler/main.py download-papers "FILEPATHTOJOURNALSWITHISSNCODES.csv" --n-files 1
 ```
 
 ```bash
@@ -36,6 +49,8 @@ uv run kibad-crawler list-releases
 uv run kibad-crawler list-releases --top-n 15
 uv run kibad-crawler download-publication-venues
 uv run kibad-crawler download-publication-venues --release 2026-05-26
+
+uv run kibad-crawler download-paper-metadata --help
 ```
 
 ```mermaid
@@ -55,7 +70,7 @@ flowchart LR
     id6 --> |Relevance filter using metadata|id7(Download PDF files)
     id7 --> |Relevance filter using content|id8(Postprocessing)
 ```
-
+<!-- 
 ## S2 API client (class and methods)
 
 The Semantic Scholar integration lives in `kibad_crawler.s2_api`. For a human-written overview of the client, diffs, recommendations, and relevance filter, see [docs/S2_CLIENT_AND_FEATURES.md](docs/S2_CLIENT_AND_FEATURES.md). You can use the **class-based client** or the existing **module-level functions** (unchanged for the notebook):
@@ -80,14 +95,9 @@ from kibad_crawler import RelevanceFilter
 criteria = RelevanceFilter(min_citation_count=5, keywords=["NLP", "transformer"])
 papers = [...]  # list of paper dicts from bulk API
 filtered = client.filter_by_relevance(papers, criteria)
-```
+``` -->
 
-To download additional papers it is required:
 
-- A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
-    - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
-- A copy in CSV of the file [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097)
-    - Store the CSV file in `./data/raw/Übersicht relevante Journals und Archive.csv`
 
 # 1. Übersicht relevante Journals und Archive
 
@@ -151,7 +161,7 @@ To download new publications the process is the following:
     1. An additional filter by `citationCount` can be added.
 1. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
 1. Use the list of `paperid`s to bulk query the API to download 500 papers on each call
-1. The following fields are returned by the bulk API "corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"
+1. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
 1. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/json/<release>-<batch_number>.json`
 
 # Resources

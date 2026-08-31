@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import pandas as pd
 import requests
 from retry import retry
 
@@ -66,3 +69,21 @@ def api_call_get(url: str, timeout: int = 60, api_key: str | None = None) -> req
         response = requests.get(url=url, timeout=timeout)
     response.raise_for_status()
     return response
+
+
+def get_issn_codes(path_journals_csv: Path | str) -> list:
+    """Return a list of ISSN code to filter journals. It reads a CSV with ISSN
+    column names and filter it's content.
+
+    Args:
+        file_path (Path): CSV file with ISSN codes to filter publication venues.
+
+    Returns:
+        list: ISSN codes to filter publication venues.
+    """
+    df_journals = pd.read_csv(path_journals_csv)
+    columns = [x for x in df_journals.columns if "issn" in str(x).lower()]
+    issn = []
+    for column in columns:
+        issn += [x for x in df_journals[column].unique() if isinstance(x, str)]
+    return issn

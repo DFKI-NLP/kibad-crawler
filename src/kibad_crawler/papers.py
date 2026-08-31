@@ -21,6 +21,9 @@ class PaperSearch:
     max_publication_date: str = field(default=datetime.now().strftime("%Y-%m-%d"))
     min_citation_count: int = field(default=0)
 
+    def __repr__(self):
+        return f"Paper search criteria: (publication_venue_ids={len(self.publication_venue_ids):,} venues, min_publication_date='{self.min_publication_date}', max_publication_date='{self.max_publication_date}', min_citation_count={self.min_citation_count})"
+
 
 def get_papers(
     url: str,
@@ -29,6 +32,24 @@ def get_papers(
     overwrite: bool = False,
     persistent: bool = False,
 ):
+    """Download paper metadata from Semantic Scholar and filter downloaded
+    files based on publication venues, minimum and maximum publication dates
+    and citation count.
+
+    Args:
+        url (str): URL of the paper dataset to download.
+        output_path (Path): Storage path to save the downloaded file.
+        search_params (PaperSearch): Search and filter criteria based on:
+            - publication_venue_ids
+            - min_publication_date
+            - max_publication_date
+            - min_citation_count
+        overwrite (bool, optional): Whether or not to overwrite a file that is
+            already processed. Defaults to False.
+        persistent (bool, optional): Whether or not to keep the original file
+            of more than 1GB after filtering papers based on `search_params`.
+            Defaults to False. This option saves storage space.
+    """
 
     file_name = url.split("?")[0].split("/")[-1]
     csv_path = output_path / f"{file_name}.csv"

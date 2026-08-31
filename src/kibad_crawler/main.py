@@ -1,13 +1,28 @@
-from pathlib import Path
+from datetime import datetime
 from typing import Annotated
 
 from loguru import logger
 import typer
 
-from kibad_crawler import s2_api
-from kibad_crawler.crawler import download_open_access_pdfs
+from kibad_crawler.config import RAW_DATA_DIR
+from kibad_crawler.papers import PaperSearch, get_papers
+from kibad_crawler.semantic_scholar import datasets
+from kibad_crawler.utils import get_issn_codes
 
 app = typer.Typer()
+
+
+@app.command()
+def list_releases(
+    top_n: Annotated[
+        int, typer.Option(help="Number of release names to show in descending order.")
+    ] = 10,
+):
+    """Shows the latest top_n releases from the datasets"""
+    available_releases = datasets.get_available_releases()
+    logger.info(
+        f"Latest {top_n} of {len(available_releases)} releases: {sorted(available_releases[-top_n:], reverse=True)}"
+    )
 
 
 @app.command()
@@ -18,95 +33,113 @@ def download_publication_venues(
             help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
         ),
     ] = None,
-    storage_path: Annotated[
-        str | None,
-        typer.Option(
-            help="Absolute or relative path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'. It will use the './data/raw/' folder in the root folder of the repository if not provided."
-        ),
-    ] = None,
-):
+) -> None:
     """Downloads the publication venues of a given Semantic Scholar release"""
-    s2_client = s2_api.SemanticScholarAPIClient(storage_path=storage_path)
-    release = release or s2_client.latest_release
+    available_releases = datasets.get_available_releases()
+    release_id = release or available_releases[-1]
+
     assert (
-        release in s2_client.releases
-    ), f"'{release}' must be a valid release id. i.e.: {[x for x in reversed(s2_client.releases[-3:])]}"
-    _ = s2_client.get_publication_venues(release_id=release)
+        release_id in available_releases
+    ), f"'{release_id}' must be a valid release id. i.e.: {[x for x in reversed(available_releases[-3:])]}"
 
-
-@app.command()
-def list_releases(
-    top_n: Annotated[
-        int, typer.Option(help="Number of release names to show in descending order.")
-    ] = 10,
-):
-    """Shows the latest top_n releases from the datasets"""
-    s2_client = s2_api.SemanticScholarAPIClient()
-    logger.info(
-        f"Latest {top_n} of {len(s2_client.releases)} releases: {sorted(s2_client.releases[-top_n:], reverse=True)}"
+    links_publication_venues = datasets.download_links(release_id, "publication-venues")
+    output_path = datasets.download_dataset_from_semantic_scholar(
+        url=links_publication_venues["files"][0],
+        output_path=RAW_DATA_DIR
+        / "semantic_scholar"
+        / "release"
+        / release_id
+        / "publication_venues",
     )
+    _ = datasets.read_publication_venues(file_path=output_path)
 
 
 @app.command()
-def download_papers(
+def download_paper_metadata(
     file_with_issn: Annotated[
         str,
         typer.Option(
             help="CSV file with ISSN codes of publication venues used to filter publications from those venues."
         ),
-    ],
+    ] = str(RAW_DATA_DIR / "journals.csv"),
     release: Annotated[
         str | None,
         typer.Option(
             help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. The latest release is used in case no release is provided."
         ),
     ] = None,
-    n_pages: Annotated[
+    n_files: Annotated[
         int,
         typer.Option(
             help="Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available per release."
         ),
     ] = 0,
-    storage_path: Annotated[
-        str | None,
-        typer.Option(
-            help="Absolute or relative path to store data from Semantic Scholar. Publication venues will be stored in 'storage_path/release/YYYY-MM-DD/publication_venues'. It will use the './data/raw/' folder in the root folder of the repository if not provided."
-        ),
-    ] = None,
-    download_open_access: Annotated[
+    min_publication_date: Annotated[
+        str,
+        typer.Option(help="Minimum publiction date to search papers."),
+    ] = "2024-01-01",
+    max_publication_date: Annotated[
+        str,
+        typer.Option(help="Maximum publiction date to search papers."),
+    ] = datetime.now().strftime("%Y-%m-%d"),
+    min_citation_count: Annotated[
+        int,
+        typer.Option(help="Minimum citation count to select a paper."),
+    ] = 0,
+    overwrite: Annotated[
+        bool,
+        typer.Option(help="Whether or not to overwrite files already processed."),
+    ] = False,
+    persistent: Annotated[
         bool,
         typer.Option(
-            help="Whether or not to download the PDF files of the available open access URLs. The PDF files will be stored in the 'storage_path'."
+            help="Whether or not to keep original 1GB files of metadata after filtering papers."
         ),
     ] = False,
 ):
-    """Download papers from Semantic Scholar"""
+    """Download metadata of papers from Semantic Scholar"""
+    # : bool = False,
+    # persistent: bool = False,
 
-    # initialization of the client
-    s2_client = s2_api.SemanticScholarAPIClient(storage_path=storage_path)
-    release = release or s2_client.latest_release
+    # Set release_id
+    available_releases = datasets.get_available_releases()
+    release_id = release or available_releases[-1]
+    assert (
+        release_id in available_releases
+    ), f"'{release_id}' must be a valid release id. i.e.: {[x for x in reversed(available_releases[-3:])]}"
 
-    # publication venues dataset
-    df_venues = s2_client.get_publication_venues(release_id=release)
-
-    publication_venue_ids = s2_api.get_publication_venue_id_from_issn_codes(
-        file_path=file_with_issn,
-        df_venues=df_venues,
+    # Get publication venues from the release
+    links_publication_venues = datasets.download_links(release_id, "publication-venues")
+    output_path = datasets.download_dataset_from_semantic_scholar(
+        url=links_publication_venues["files"][0],
+        output_path=RAW_DATA_DIR
+        / "semantic_scholar"
+        / "release"
+        / release_id
+        / "publication_venues",
     )
+    df_venues = datasets.read_publication_venues(file_path=output_path)
 
-    # download paper information from Semantic Scholar
-    release_path = s2_client._download_all_papers(
-        publication_venue_ids=publication_venue_ids, n_pages=n_pages, persistent_storage=True
+    # Get publication ids from ISSN code to filter publication venues
+    issn = get_issn_codes(file_with_issn)
+    publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
+
+    # Get the links of for the metadat of the papers
+    links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
+    search_params = PaperSearch(
+        publication_venue_ids=publication_venue_ids,  # type: ignore
+        min_publication_date=min_publication_date,
+        max_publication_date=max_publication_date,
+        min_citation_count=min_citation_count,
     )
+    logger.info(f"{search_params}")
 
-    # download papers metadata
-    s2_client.download_paper_metadata(path=release_path)
-
-    # download open access PDFs
-    if download_open_access:
-        df_pdfs = s2_client.get_open_access_urls(path=release_path)
-        download_open_access_pdfs(df_pdfs=df_pdfs, path=release_path)
-
-
-if __name__ == "__main__":
-    app()
+    output_path_papers = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
+    for url in links_papers["files"][:n_files]:
+        get_papers(
+            url=url,
+            output_path=output_path_papers,
+            search_params=search_params,
+            overwrite=overwrite,
+            persistent=persistent,
+        )

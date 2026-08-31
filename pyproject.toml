@@ -40,6 +40,10 @@ cicd = [
     "prek>=0.3.8",
     "zuban>=0.6.2",
 ]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/kibad_crawler"]
