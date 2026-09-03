@@ -87,3 +87,8 @@ def get_issn_codes(path_journals_csv: Path | str) -> list:
     for column in columns:
         issn += [x for x in df_journals[column].unique() if isinstance(x, str)]
     return issn
+
+
+def chunker(seq: list, size: int):
+    """Divide a large list into lists of the given size."""
+    return (seq[pos : pos + size] for pos in range(0, len(seq), size))

@@ -13,12 +13,15 @@ Some things to note:
 https://api.semanticscholar.org/api-docs/graph
 """
 
+from retry import retry
+
 from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, S2_API_KEY
 from kibad_crawler.utils import api_call_post
 
 URL_BASE = "https://api.semanticscholar.org/graph/v1"
 
 
+@retry(tries=3, delay=2)
 def batch(
     ids: list[str],
     fields: str = "paperId,corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability",

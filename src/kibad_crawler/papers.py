@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 import gzip
 from io import StringIO
+import json
 import os
 from pathlib import Path
 
@@ -9,7 +10,10 @@ from loguru import logger
 import pandas as pd
 from tqdm import tqdm
 
+from kibad_crawler.config import MAX_NUM_BATCH_PAPERS
 from kibad_crawler.semantic_scholar import datasets
+from kibad_crawler.semantic_scholar import academic_graph
+from kibad_crawler.utils import chunker
 
 
 @dataclass
@@ -31,6 +35,7 @@ def get_papers(
     search_params: PaperSearch,
     overwrite: bool = False,
     persistent: bool = False,
+    with_abstracts: bool = True,
 ):
     """Download paper metadata from Semantic Scholar and filter downloaded
     files based on publication venues, minimum and maximum publication dates
@@ -49,12 +54,16 @@ def get_papers(
         persistent (bool, optional): Whether or not to keep the original file
             of more than 1GB after filtering papers based on `search_params`.
             Defaults to False. This option saves storage space.
+        with_abstracts (bool, optional) = Include the abstracts in the
+            downloading process. Default to True.
     """
 
     file_name = url.split("?")[0].split("/")[-1]
     csv_path = output_path / f"{file_name}.csv"
     if csv_path.exists():
         logger.debug(f"Skipping existing {csv_path}")
+        if with_abstracts:
+            get_abstracts(csv_path)
         return
 
     file_path = datasets.download_dataset_from_semantic_scholar(
@@ -82,4 +91,36 @@ def get_papers(
 
     if not persistent:
         os.remove(file_path)
-        logger.info(f"Removed {file_path}")
+        logger.info(f"Removing {file_path}")
+
+    if with_abstracts:
+        get_abstracts(csv_path)
+
+
+def get_abstracts(file_path: Path):
+    """Download abstracts of papers from Semantic Scholar.
+
+    Args:
+        file_path (Path): File path to a single CSV file with papers
+            filtered from the Semantic Scholar API.
+    """
+    df = pd.read_csv(file_path)
+    logger.info(f"{df.shape[0]:,} abstracts to download")
+
+    paper_ids = []
+    for i, r in df.iterrows():
+        paper_ids.append(r["url"].split("/")[-1])
+
+    json_path = file_path.parent / file_path.name[:-7] / "json"
+    json_path.mkdir(parents=True, exist_ok=True)
+
+    for i, group in tqdm(
+        enumerate(chunker(paper_ids, MAX_NUM_BATCH_PAPERS)),
+        total=int(len(paper_ids) / MAX_NUM_BATCH_PAPERS),
+        desc="Downloading abstracts",
+    ):
+        response_batch = academic_graph.batch(group)
+
+        json_file = json_path / f"papers-metadata-{i}.json"
+        with open(str(json_file), "w", encoding="utf-8") as f:
+            json.dump(response_batch, f)
