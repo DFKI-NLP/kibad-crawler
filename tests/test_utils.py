@@ -12,3 +12,7 @@ def test_api_call_get() -> None:
 
 def test_get_issn_codes() -> None:
     pass
+
+
+def test_chunker() -> None:
+    pass

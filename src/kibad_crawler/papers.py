@@ -11,8 +11,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from kibad_crawler.config import MAX_NUM_BATCH_PAPERS
-from kibad_crawler.semantic_scholar import datasets
-from kibad_crawler.semantic_scholar import academic_graph
+from kibad_crawler.semantic_scholar import academic_graph, datasets
 from kibad_crawler.utils import chunker
 
 
