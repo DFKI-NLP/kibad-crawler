@@ -39,20 +39,3 @@ Each `release`, has the following datasets:
     references. 16M records in 30 6GB files.
 - `tldrs` A short natural-language summary of the contents of a paper. 58M
     records in 30 200MB files.
-
-## Download algorithm
-
-To download new publications the process is the following:
-
-1. Download the releases and select the most recent by default. The release has a format of date `2026-02-03`.
-1. Download the `publication-venues` dataset of that `release`.
-1. Filter the `publication-venues` by the `ISSN` codes obtained from [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) and generate a list with specific venues.
-1. Extract the `id` of those `publication-venues`.
-1. Download the `papers` dataset. 60 files of 1,8GB each.
-1. Select a publication date range to filter the papers.
-1. Filter each batch of papers by the `venue_id` and publication date range.
-    1. An additional filter by `citationCount` can be added.
-1. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
-1. Use the list of `paperid`s to bulk query the API to download 500 papers on each call
-1. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
-1. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/json/<release>-<batch_number>.json`
