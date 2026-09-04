@@ -97,7 +97,16 @@ def download_paper_metadata(
         ),
     ] = False,
 ):
-    """Download metadata of papers from Semantic Scholar"""
+    """Download metadata of papers from Semantic Scholar.
+
+    The resulting metadata will contain the following fields: corpusId, url,
+    title, abstract, venue, publicationVenue, year, citationCount, isOpenAccess,
+    openAccessPdf, publicationDate, journal, fieldsOfStudy, s2FieldsOfStudy,
+    authors, tldr, publicationTypes, textAvailability.
+
+    See the available fields in the data section of the Response Schema here:
+    https://api.semanticscholar.org/api-docs/graph#tag/Paper-Data/operation/get_graph_paper_bulk_search
+    """
 
     # Set release_id
     available_releases = datasets.get_available_releases()
