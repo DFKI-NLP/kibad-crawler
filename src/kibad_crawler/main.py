@@ -98,8 +98,6 @@ def download_paper_metadata(
     ] = False,
 ):
     """Download metadata of papers from Semantic Scholar"""
-    # : bool = False,
-    # persistent: bool = False,
 
     # Set release_id
     available_releases = datasets.get_available_releases()
@@ -144,3 +142,7 @@ def download_paper_metadata(
             persistent=persistent,
         )
     logger.info("finished successfully")
+
+
+if __name__ == "__main__":
+    app()
