@@ -143,3 +143,4 @@ def download_paper_metadata(
             overwrite=overwrite,
             persistent=persistent,
         )
+    logger.info("finished successfully")
