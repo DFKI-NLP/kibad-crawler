@@ -110,9 +110,11 @@ def get_abstracts(file_path: Path):
     for i, r in df.iterrows():
         paper_ids.append(r["url"].split("/")[-1])
 
+    # use  [:-7] to remove ".gz.csv" from the file name
     json_path = file_path.parent / file_path.name[:-7] / "json"
     json_path.mkdir(parents=True, exist_ok=True)
 
+    logger.info(f"Downloading abstracts to {json_path} ...")
     for i, group in tqdm(
         enumerate(chunker(paper_ids, MAX_NUM_BATCH_PAPERS)),
         total=int(len(paper_ids) / MAX_NUM_BATCH_PAPERS),
@@ -121,5 +123,5 @@ def get_abstracts(file_path: Path):
         response_batch = academic_graph.batch(group)
 
         json_file = json_path / f"papers-metadata-{i}.json"
-        with open(str(json_file), "w", encoding="utf-8") as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(response_batch, f)
