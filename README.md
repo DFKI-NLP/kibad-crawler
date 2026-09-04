@@ -21,11 +21,11 @@ flowchart LR
     id7 --> |Relevance filter using content|id8(Postprocessing)
 ```
 
-The crawler uses Semantic Scholar API to query and download papers. It is a two
-step process:
+The crawler uses the [Datasets](https://api.semanticscholar.org/api-docs/datasets) and the [Academic Graph](https://api.semanticscholar.org/api-docs/graph) API from Semantic Scholar to query and download papers.
 
-1. Request the links of a dataset (publication venues, abstracts, papers, etc.). The links have an expiration date.
-1. Download the files using the links before the expiration date.
+1. Request links for the `publication-venues` and `papers` datasets using the **Datasets API** (the `papers` dataset does not contain the abstract of the papers)
+2. Query the abstracts of those papers in batches of 500 papers using the bulk entrypoint of the **Academic Graph API**.
+3. Semantic Scholar API provides an `openAccessPdf.url` field with a link to the PDF file for the open access papers.
 
 # Setup
 
@@ -46,22 +46,13 @@ cp .env.example .env
 
 ## Prerequisites
 
-To download additional papers it is required:
+To download the files with paper metadata, it is required:
 
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
     - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
-- A copy in CSV of the file [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097)
-    - Store the CSV file in `./data/raw/journals.csv`
+- A CSV file with column names with the string "`ISSN`" that is used to filter papers by publication venue. The CSV file must be saved to [`./data/raw/journals.csv`](/data/raw/journals.csv)
 
 # Usage
-
-```bash
-uv run src/kibad_crawler/main.py list-releases --top-n 10
-
-uv run src/kibad_crawler/main.py download-publication-venues
-
-uv run src/kibad_crawler/main.py download-papers "FILEPATHTOJOURNALSWITHISSNCODES.csv" --n-files 1
-```
 
 ```bash
 uv run kibad-crawler --help
@@ -73,6 +64,22 @@ uv run kibad-crawler download-publication-venues --release 2026-05-26
 uv run kibad-crawler download-paper-metadata --help
 ```
 
+## Download algorithm
+
+To download new publications the process is the following:
+
+1. Download the releases and select the most recent by default. The release has a format of date `2026-02-03`.
+1. Download the `publication-venues` dataset of that `release`.
+1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from the [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) document.
+1. Extract the `id` of those `publication-venues`.
+1. Download the `papers` dataset. 60 files of 1,8GB each.
+1. Select a publication date range to filter the papers.
+1. Filter each batch of papers by the `venue_id` and publication date range.
+    1. An additional filter by `citationCount` can be added.
+1. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
+1. Use the list of `paperid`s to bulk query the API to download 500 papers on each call
+1. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
+1. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/<csv_file_name_with_basic_metadata>/json/<release>-<batch_number>.json`
 
 
 <!--
