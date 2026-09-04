@@ -1,6 +1,5 @@
 # Crawler
 
-
 [![](https://img.shields.io/badge/kanban-black?logo=github)](https://github.com/orgs/DFKI-NLP/projects/2)
 [![kibad-llm](https://img.shields.io/badge/kibad--llm-black?logo=github)](https://github.com/DFKI-NLP/kibad-llm)
 
@@ -72,19 +71,19 @@ To download new publications the process is the following:
 The call `uv run kibad-crawler download-paper-metadata` triggers the following flow:
 
 1. Download the releases and select the most recent by default. The release has a format of date `2026-02-03`.
-2. Download the `publication-venues` dataset of that `release`. 
-3. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
-4. Extract the `id` of those `publication-venues`.
-5. Download the `papers` dataset. 60 files of 1,8GB each.
-   1. Get the a list with links to all the files
-   2. Download each of the links to disk
-6. Select a publication date range to filter the papers.
-7. Filter each batch of papers by the `venue_id` and publication date range.
+1. Download the `publication-venues` dataset of that `release`.
+1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
+1. Extract the `id` of those `publication-venues`.
+1. Download the `papers` dataset. 60 files of 1,8GB each.
+    1. Get the a list with links to all the files
+    1. Download each of the links to disk
+1. Select a publication date range to filter the papers.
+1. Filter each batch of papers by the `venue_id` and publication date range.
     1. An additional filter by `citationCount` can be added.
-8. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
-9.  Use the list of `paperid`s to bulk query the API to download 500 papers on each call
-10. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
-11. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/<csv_file_name_with_basic_metadata>/json/<release>-<batch_number>.json`
+1. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
+1. Use the list of `paperid`s to bulk query the API to download 500 papers on each call
+1. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
+1. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/<csv_file_name_with_basic_metadata>/json/<release>-<batch_number>.json`
 
 ```python
 # Extract from src/kibad-crawler/main.py::download_paper_metadata
@@ -93,7 +92,7 @@ The call `uv run kibad-crawler download-paper-metadata` triggers the following f
 Args:
     - file_with_issn (str): CSV file with ISSN codes of publication venues used to filter publications from those venues. Default to `str(RAW_DATA_DIR / "journals.csv"`
     - release (str): Release version from Semantic Scholar with format 'YYYY-MM-DD'. The latest release is used in case no release is provided. Default to None.
-    - n_files (int): Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available per release Deafults to 0.
+    - n_files (int): Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available per release Defaults to 0.
     - min_publication_date (str): Minimum publiction date to search papers. Defaults to "2024-01-01".
     - max_publication_date (str): Maximum publiction date to search papers. Defaults to datetime.now().strftime("%Y-%m-%d").
     - min_citation_count (int): Minimum citation count to select a paper. Defaults to 0.
@@ -145,7 +144,6 @@ for url in links_papers["files"][: len(links_papers) if n_files == 0 else n_file
     )
 logger.info("finished successfully")
 ```
-
 
 <!--
 ## S2 API client (class and methods)
