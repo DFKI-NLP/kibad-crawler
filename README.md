@@ -52,6 +52,11 @@ To download the files with paper metadata, it is required:
     - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
 - A CSV file with column names with the string "`ISSN`" that is used to filter papers by publication venue. The CSV file must be saved to [`./data/raw/journals.csv`](/data/raw/journals.csv)
 
+> **Note**: The `journals.csv` is currently a requisite to make the code work
+> and the repository comes with this file in `./data/raw/journals.csv` with 100
+> publication venues on the subject of biodiversity. This file is used to
+> select specific publication venues from where papers will be checked.
+
 # Usage
 
 ```bash
