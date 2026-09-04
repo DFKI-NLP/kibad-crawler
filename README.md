@@ -53,6 +53,7 @@ uv run kibad-crawler download-publication-venues --release 2026-05-26
 uv run kibad-crawler download-paper-metadata --help
 ```
 
+
 ```mermaid
 ---
 title: Crawler using Semantic Scholar (S2) API
