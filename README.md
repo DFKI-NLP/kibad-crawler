@@ -44,6 +44,8 @@ uv sync
 cp .env.example .env
 ```
 
+## Prerequisites
+
 To download additional papers it is required:
 
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
@@ -99,14 +101,6 @@ criteria = RelevanceFilter(min_citation_count=5, keywords=["NLP", "transformer"]
 papers = [...]  # list of paper dicts from bulk API
 filtered = client.filter_by_relevance(papers, criteria)
 ``` -->
-
-# 1. Übersicht relevante Journals und Archive
-
-The first task is to find the ISSN code for all the journals in
-`Übersicht relevante Journals und Archive.csv` in the columns `Online ISSN` and
-`Print ISSN`.
-
-
 
 # Resources
 
