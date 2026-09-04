@@ -88,7 +88,16 @@ The call `uv run kibad-crawler download-paper-metadata` triggers the following f
 ```python
 # Extract from src/kibad-crawler/main.py::download_paper_metadata
 
-"""
+"""Download metadata of papers from Semantic Scholar.
+
+The resulting metadata will contain the following fields: corpusId, url,
+title, abstract, venue, publicationVenue, year, citationCount, isOpenAccess,
+openAccessPdf, publicationDate, journal, fieldsOfStudy, s2FieldsOfStudy,
+authors, tldr, publicationTypes, textAvailability.
+
+See the available fields in the data section of the Response Schema here:
+https://api.semanticscholar.org/api-docs/graph#tag/Paper-Data/operation/get_graph_paper_bulk_search
+
 Args:
     - file_with_issn (str): CSV file with ISSN codes of publication venues used to filter publications from those venues. Default to `str(RAW_DATA_DIR / "journals.csv"`
     - release (str): Release version from Semantic Scholar with format 'YYYY-MM-DD'. The latest release is used in case no release is provided. Default to None.
