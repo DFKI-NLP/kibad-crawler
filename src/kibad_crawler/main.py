@@ -122,7 +122,7 @@ def download_paper_metadata(
     issn = get_issn_codes(file_with_issn)
     publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
 
-    # Get the links of for the metadata of the papers
+    # Get the links to the metadata files of the papers
     links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
     search_params = PaperSearch(
         publication_venue_ids=publication_venue_ids,  # type: ignore
@@ -132,8 +132,9 @@ def download_paper_metadata(
     )
     logger.info(f"{search_params}")
 
+    # Downloads files with the actual metadata of the papers
     output_path_papers = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
-    for url in links_papers["files"][:n_files]:
+    for url in links_papers["files"][: len(links_papers) if n_files == 0 else n_files]:
         get_papers(
             url=url,
             output_path=output_path_papers,

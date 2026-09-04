@@ -1,5 +1,6 @@
 # Crawler
 
+
 [![](https://img.shields.io/badge/kanban-black?logo=github)](https://github.com/orgs/DFKI-NLP/projects/2)
 [![kibad-llm](https://img.shields.io/badge/kibad--llm-black?logo=github)](https://github.com/DFKI-NLP/kibad-llm)
 
@@ -17,7 +18,7 @@ flowchart LR
     id4 --> id51(Download S2 papers diff between two releases and filter by publication venue)
     id5 --> |Relevance filter by citations and publication date|id6(S2 bulk API download paper metadata: title, abstract, etc.)
     id51 --> |Relevance filter by citations and publication date|id6(S2 bulk API download paper metadata: title, abstract, etc.)
-    id6 --> |Relevance filter using metadata|id7(Download PDF files)
+    id6 --> |String search filter using title and abstract|id7(Download PDF files)
     id7 --> |Relevance filter using content|id8(Postprocessing)
 ```
 
@@ -68,18 +69,83 @@ uv run kibad-crawler download-paper-metadata --help
 
 To download new publications the process is the following:
 
+The call `uv run kibad-crawler download-paper-metadata` triggers the following flow:
+
 1. Download the releases and select the most recent by default. The release has a format of date `2026-02-03`.
-1. Download the `publication-venues` dataset of that `release`.
-1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from the [Übersicht relevante Journals und Archive](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) document.
-1. Extract the `id` of those `publication-venues`.
-1. Download the `papers` dataset. 60 files of 1,8GB each.
-1. Select a publication date range to filter the papers.
-1. Filter each batch of papers by the `venue_id` and publication date range.
+2. Download the `publication-venues` dataset of that `release`. 
+3. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
+4. Extract the `id` of those `publication-venues`.
+5. Download the `papers` dataset. 60 files of 1,8GB each.
+   1. Get the a list with links to all the files
+   2. Download each of the links to disk
+6. Select a publication date range to filter the papers.
+7. Filter each batch of papers by the `venue_id` and publication date range.
     1. An additional filter by `citationCount` can be added.
-1. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
-1. Use the list of `paperid`s to bulk query the API to download 500 papers on each call
-1. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
-1. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/<csv_file_name_with_basic_metadata>/json/<release>-<batch_number>.json`
+8. Extract the `paperid` from the last part of the `url` field in the `papers` dataset
+9.  Use the list of `paperid`s to bulk query the API to download 500 papers on each call
+10. The following fields are returned by the bulk API `"corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability"`
+11. The bulk of 500 papers each is stored in files with the following pattern `semantic_scholar/release/<release>/<csv_file_name_with_basic_metadata>/json/<release>-<batch_number>.json`
+
+```python
+# Extract from src/kibad-crawler/main.py::download_paper_metadata
+
+"""
+Args:
+    - file_with_issn (str): CSV file with ISSN codes of publication venues used to filter publications from those venues. Default to `str(RAW_DATA_DIR / "journals.csv"`
+    - release (str): Release version from Semantic Scholar with format 'YYYY-MM-DD'. The latest release is used in case no release is provided. Default to None.
+    - n_files (int): Number of 1GB compressed files with metadata of papers to download. Zero means it will download all the ~60 files available per release Deafults to 0.
+    - min_publication_date (str): Minimum publiction date to search papers. Defaults to "2024-01-01".
+    - max_publication_date (str): Maximum publiction date to search papers. Defaults to datetime.now().strftime("%Y-%m-%d").
+    - min_citation_count (int): Minimum citation count to select a paper. Defaults to 0.
+    - overwrite (bool): Whether or not to overwrite files already processed. Defaults to False.
+    - persistent (bool): Whether or not to keep original 1GB files of metadata after filtering papers. Defaults to False.
+"""
+# (step 1) Set release_id
+available_releases = datasets.get_available_releases()
+release_id = release or available_releases[-1]
+
+# (step 2) Get publication venues from the release
+links_publication_venues = datasets.download_links(release_id, "publication-venues")
+output_path = datasets.download_dataset_from_semantic_scholar(
+    url=links_publication_venues["files"][0],
+    output_path=RAW_DATA_DIR
+    / "semantic_scholar"
+    / "release"
+    / release_id
+    / "publication_venues",
+)
+df_venues = datasets.read_publication_venues(file_path=output_path)
+
+# (step 3) Get publication ids from ISSN code to filter publication venues
+issn = get_issn_codes(file_with_issn)
+
+# (step 4) Extract ids from publication-venues
+publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
+
+# (step 5) Get the links to the metadata files of the papers
+links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
+
+# (steps 6 and 7)
+search_params = PaperSearch(
+    publication_venue_ids=publication_venue_ids,  # type: ignore
+    min_publication_date=min_publication_date,
+    max_publication_date=max_publication_date,
+    min_citation_count=min_citation_count,
+)
+
+# (steps 8 to 11) Downloads files with the actual metadata of the papers
+output_path_papers = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
+for url in links_papers["files"][: len(links_papers) if n_files == 0 else n_files]:
+    get_papers(
+        url=url,
+        output_path=output_path_papers,
+        search_params=search_params,
+        overwrite=overwrite,
+        persistent=persistent,
+    )
+logger.info("finished successfully")
+```
+
 
 <!--
 ## S2 API client (class and methods)
