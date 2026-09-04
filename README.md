@@ -55,7 +55,8 @@ To download the files with paper metadata, it is required:
 > **Note**: The `journals.csv` is currently a requisite to make the code work
 > and the repository comes with this file in `./data/raw/journals.csv` with 100
 > publication venues on the subject of biodiversity. This file is used to
-> select specific publication venues from where papers will be checked.
+> select specific publication venues from which papers will be checked and can
+> be modified to include or remove publication venues.
 
 # Usage
 
