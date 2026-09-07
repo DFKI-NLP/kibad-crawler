@@ -51,6 +51,7 @@ To download the files with paper metadata, it is required:
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
     - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
 - A CSV file with column names with the string "`ISSN`" that is used to filter papers by publication venue. The CSV file must be saved to [`./data/raw/journals.csv`](/data/raw/journals.csv)
+    - The existing `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
 
 > **Note**: The `journals.csv` is currently a requisite to make the code work
 > and the repository comes with this file in `./data/raw/journals.csv` with 100
@@ -78,7 +79,7 @@ The call `uv run kibad-crawler download-paper-metadata` triggers the following f
 
 1. Download the releases and select the most recent by default. The release has a format of date `2026-02-03`.
 1. Download the `publication-venues` dataset of that `release`.
-1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
+1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues.
 1. Extract the `id` of those `publication-venues`.
 1. Download the `papers` dataset. 60 files of 1,8GB each.
     1. Get the a list with links to all the files
