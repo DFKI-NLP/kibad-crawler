@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-cicd = [
+dev = [
     "prek>=0.5.2,<0.6.0",
     "zuban>=0.9.3,<0.10.0",
     "pytest>=9.1.1,<10.0.0",
