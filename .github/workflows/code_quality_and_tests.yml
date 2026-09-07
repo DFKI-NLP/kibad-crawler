@@ -42,7 +42,7 @@ jobs:
             ${{ steps.prek-cache.outputs.result }}-
       - name: Run preks
         run: |
-          uv run --group cicd prek run -a
+          uv run prek run -a
         shell: bash
 
 # TODO: Uncomment when we have converted the unittests to pytest
