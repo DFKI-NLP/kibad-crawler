@@ -99,6 +99,31 @@ def download_paper_metadata(
 ):
     """Download metadata of papers from Semantic Scholar.
 
+    Workflow:
+
+    1. Load publication venues for the selected release, reusing the local
+    download if present. Match CSV ISSN values to Semantic Scholar venue IDs.
+
+    2. Download or reuse paper dataset files. Keep records containing a
+    matched venue ID, then filter by publication date and citation count.
+    Papers without a publication date are excluded. Save results as CSVs.
+
+    3. Use the matching papers' IDs to request metadata, including abstracts,
+    from the Graph API in batches of up to 500. Save each batch as JSON.
+    These responses come from the live API, not the selected dataset release.
+
+    Download size: historically about 60 files per release, roughly 1 GB
+    compressed each. Actual file counts and sizes vary by release.
+
+    On repeat runs, existing CSVs bypass downloading and filtering, even if
+    filter options change. API metadata is fetched again, overwriting JSON
+    files with matching names regardless of --overwrite.
+
+    Output (under the project root):
+    data/raw/semantic_scholar/release/<release>/papers/ contains the filtered
+    CSVs. JSON batches are saved beneath it as
+    <archive-name-without-.gz>/json/papers-metadata-<batch>.json.
+
     The resulting metadata will contain the following fields: corpusId, url,
     title, abstract, venue, publicationVenue, year, citationCount, isOpenAccess,
     openAccessPdf, publicationDate, journal, fieldsOfStudy, s2FieldsOfStudy,
