@@ -1,7 +1,6 @@
 import pytest
 
 
-@pytest.mark.webtest
 def test_get_available_releases():
     pass
 
