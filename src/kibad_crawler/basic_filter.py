@@ -84,9 +84,7 @@ def get_papers_from_search(query: str, files_path: Path) -> list:
 
             result = all(check_result)
             if result:
-                # print(r["paperId"])
                 paper_filter.append(r["paperId"])
-                # print(f"{i}, {text}")
     end = pendulum.now()
     logger.info(
         f"{len(paper_filter):,} out of {total_papers:,} papers selected in {(end - start).in_words()}"
