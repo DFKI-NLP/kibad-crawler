@@ -29,8 +29,8 @@ flowchart LR
 The crawler uses the [Datasets](https://api.semanticscholar.org/api-docs/datasets) and the [Academic Graph](https://api.semanticscholar.org/api-docs/graph) API from Semantic Scholar to query and download papers.
 
 1. Request links for the `publication-venues` and `papers` datasets using the **Datasets API** (the `papers` dataset does not contain the abstract of the papers)
-2. Query the abstracts of those papers in batches of 500 papers using the bulk entrypoint of the **Academic Graph API**.
-3. Semantic Scholar API provides an `openAccessPdf.url` field with a link to the PDF file for the open access papers.
+1. Query the abstracts of those papers in batches of 500 papers using the bulk entrypoint of the **Academic Graph API**.
+1. Semantic Scholar API provides an `openAccessPdf.url` field with a link to the PDF file for the open access papers.
 
 # Setup
 
