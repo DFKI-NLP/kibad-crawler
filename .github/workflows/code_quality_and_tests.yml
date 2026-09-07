@@ -15,7 +15,7 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up python & uv
         uses: ./.github/actions/init-env
         with:
@@ -34,7 +34,7 @@ jobs:
           result = "${{ runner.os }}-{}-{}-prek".format(python, digest[:8])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f: f.write(f"result={result}\n")
       - name: Restore prek cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/prek
           key: ${{ steps.prek-cache.outputs.result }}-${{ hashFiles('.prek-config.yaml') }}
