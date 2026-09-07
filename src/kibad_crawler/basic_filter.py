@@ -1,20 +1,20 @@
 from pathlib import Path
 from typing import Any
 
+from loguru import logger
 import pandas as pd
 import pendulum
-from loguru import logger
 from pyparsing import (
     CaselessLiteral,
+    Word,
     alphanums,
     infix_notation,
     opAssoc,
     quotedString,
-    Word,
     removeQuotes,
 )
 
-from kibad_crawler.config import RAW_DATA_DIR, INTERIM_DATA_DIR
+from kibad_crawler.config import INTERIM_DATA_DIR, RAW_DATA_DIR
 
 and_ = CaselessLiteral("and")
 or_ = CaselessLiteral("or")
