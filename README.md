@@ -8,17 +8,22 @@
 title: Crawler using Semantic Scholar (S2) API
 ---
 flowchart LR
-    id1(Select S2 release) --> id2
-    id2(Download S2 release publication venues)
-    id3(Read ISSN codes to filter venues)
-    id2 --> id4
-    id3 --> id4{Filter publication venue by ISSN}
-    id4 --> id5(Download S2 papers of the release and filter by publication venue)
-    id4 --> id51(Download S2 papers diff between two releases and filter by publication venue)
-    id5 --> |Relevance filter by citations and publication date|id6(S2 bulk API download paper metadata: title, abstract, etc.)
-    id51 --> |Relevance filter by citations and publication date|id6(S2 bulk API download paper metadata: title, abstract, etc.)
-    id6 --> |String search filter using title and abstract|id7(Download PDF files)
-    id7 --> |Relevance filter using content|id8(Postprocessing)
+    subgraph Implemented
+    release(Select S2 release) --> publication_venues
+    publication_venues(Download S2 release publication venues)
+    issn_codes(Read ISSN codes to filter venues)
+    publication_venues --> filter_publication_venue{Filter publication venue by ISSN}
+    issn_codes --> filter_publication_venue
+    filter_publication_venue --> paper_dataset(Download **paper** Dataset)
+    paper_dataset --> filter_dates{Filter paper metadata by publication_id and publication dates}
+    filter_dates --> abstract_dataset(Download paper's **abstracts** using S2 API)
+    end
+    abstract_dataset --> search_string{Query Search filter using title and abstract}
+    subgraph To be implemented
+    search_string --> download_pdf(Download PDF)
+    download_pdf --> relevance_filter{Relevance Filter using content}
+    relevance_filter --> postprocessing(Postprocessing)
+    end
 ```
 
 The crawler uses the [Datasets](https://api.semanticscholar.org/api-docs/datasets) and the [Academic Graph](https://api.semanticscholar.org/api-docs/graph) API from Semantic Scholar to query and download papers.
@@ -51,6 +56,7 @@ To download the files with paper metadata, it is required:
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
     - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
 - A CSV file with column names with the string "`ISSN`" that is used to filter papers by publication venue. The CSV file must be saved to [`./data/raw/journals.csv`](/data/raw/journals.csv)
+    - The existing `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
 
 > **Note**: The `journals.csv` is currently a requisite to make the code work
 > and the repository comes with this file in `./data/raw/journals.csv` with 100
@@ -78,7 +84,7 @@ The call `uv run kibad-crawler download-paper-metadata` triggers the following f
 
 1. Download the releases and select the most recent by default. The release has a format of date `2026-02-03`.
 1. Download the `publication-venues` dataset of that `release`.
-1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues. The `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
+1. Filter the `publication-venues` by the `ISSN` codes obtained from [journals.csv](./data/raw/journals.csv) and generate a list with specific venues.
 1. Extract the `id` of those `publication-venues`.
 1. Download the `papers` dataset. 60 files of 1,8GB each.
     1. Get the a list with links to all the files
