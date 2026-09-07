@@ -1159,12 +1159,10 @@ dependencies = [
 [package.dev-dependencies]
 cicd = [
     { name = "prek" },
-    { name = "zuban" },
-]
-dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "typeguard" },
+    { name = "zuban" },
 ]
 
 [package.metadata]
@@ -1196,12 +1194,10 @@ requires-dist = [
 [package.metadata.requires-dev]
 cicd = [
     { name = "prek", specifier = ">=0.5.2,<0.6.0" },
-    { name = "zuban", specifier = ">=0.9.3,<0.10.0" },
-]
-dev = [
     { name = "pytest", specifier = ">=9.1.1,<10.0.0" },
     { name = "pytest-cov", specifier = ">=7.1.0,<8.0.0" },
     { name = "typeguard", specifier = ">=4.6.0,<5.0.0" },
+    { name = "zuban", specifier = ">=0.9.3,<0.10.0" },
 ]
 
 [[package]]
