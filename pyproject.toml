@@ -36,9 +36,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-cicd = [
-    "prek>=0.3.8",
-    "zuban>=0.6.2",
+dev = [
+    "prek>=0.5.2,<0.6.0",
+    "zuban>=0.9.3,<0.10.0",
+    "pytest>=9.1.1,<10.0.0",
+    "pytest-cov>=7.1.0,<8.0.0",
+    "typeguard>=4.6.0,<5.0.0",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -54,6 +57,7 @@ include = ["src/kibad_crawler"]
 typeguard-packages = "kibad_crawler"
 minversion = "6.0"
 testpaths = ["tests"]
+addopts = ["--cov=kibad_crawler", "--cov-report=term-missing"]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
   "typeguard_ignore: ignore typeguard in this test"
