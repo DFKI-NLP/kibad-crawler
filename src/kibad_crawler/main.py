@@ -1,10 +1,13 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from loguru import logger
 import typer
 
-from kibad_crawler.basic_filter import execute_all_search_queries
+from kibad_crawler.basic_filter import (
+    execute_all_search_queries,
+    execute_all_search_queries_sift,
+)
 from kibad_crawler.config import RAW_DATA_DIR
 from kibad_crawler.papers import PaperSearch, get_papers
 from kibad_crawler.semantic_scholar import datasets
@@ -188,6 +191,10 @@ def run_string_searches(
             help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
         ),
     ] = None,
+    method: Annotated[
+        Literal["sifts", "plain"],
+        typer.Option(help="Search string with simple search or with sifts library."),
+    ] = "sifts",
 ):
     """Execute string searches to filter papers based on Habitats and Topic
     Areas.
@@ -197,7 +204,10 @@ def run_string_searches(
     - Topic Areas: "Trends", "Drivers", "Measures", "Ecosystem Services"
     """
     release_id = release or datasets.get_available_releases()[-1]
-    execute_all_search_queries(release_id=release_id)
+    if method == "plain":
+        execute_all_search_queries(release_id=release_id)
+    elif method == "sifts":
+        execute_all_search_queries_sift(release_id=release_id)
 
 
 if __name__ == "__main__":

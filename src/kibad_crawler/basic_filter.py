@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 import pandas as pd
@@ -13,6 +13,9 @@ from pyparsing import (
     quotedString,
     removeQuotes,
 )
+import sifts  # type: ignore
+from sifts.core import CollectionBase  # type: ignore
+from tqdm import tqdm
 
 from kibad_crawler.config import INTERIM_DATA_DIR, RAW_DATA_DIR
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES, Query
@@ -93,7 +96,7 @@ def get_papers_from_search(query: str, files_path: Path) -> list:
     return paper_filter
 
 
-def save_selected_papers(paper_ids: list, query: Query, release_id: str):
+def save_selected_papers(paper_ids: list, query: Query, release_id: str, output_dir: Path):
     """Save to disk a list of papers in JSON format.
 
     Args:
@@ -105,12 +108,6 @@ def save_selected_papers(paper_ids: list, query: Query, release_id: str):
     # papers
     files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
     json_files = files_path.glob("**/*.json")
-
-    # Create the output directory
-    output_dir = Path(
-        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
-    )
-    output_dir.mkdir(exist_ok=True, parents=True)
 
     # Filter papers by paper id
     data = []
@@ -160,9 +157,17 @@ def execute_all_search_queries(release_id: str):
     if not _check_papers_exist(release_id=release_id):
         return
 
+    # Create the output directory
+    output_dir = Path(
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
+    )
+    output_dir.mkdir(exist_ok=True, parents=True)
+
     for query in ALL_SEARCH_QUERIES:
         papers = get_papers_from_search(query=query.query, files_path=files_path)
-        save_selected_papers(paper_ids=papers, query=query, release_id=release_id)
+        save_selected_papers(
+            paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
+        )
 
 
 def execute_search_query(release_id: str, query: Query):
@@ -176,5 +181,116 @@ def execute_search_query(release_id: str, query: Query):
     if not _check_papers_exist(release_id=release_id):
         return
 
+    # Create the output directory
+    output_dir = Path(
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
+    )
+    output_dir.mkdir(exist_ok=True, parents=True)
+
     papers = get_papers_from_search(query=query.query, files_path=files_path)
-    save_selected_papers(paper_ids=papers, query=query, release_id=release_id)
+    save_selected_papers(
+        paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
+    )
+
+
+# sifts
+
+
+def load_documents_to_database(release_id: str) -> CollectionBase | None:
+    """Load documents (title + abstract) to an sqlite database.
+
+    Args:
+        release_id (str): Release to identify the location of the papers.
+
+    Returns:
+        (CollectionBase): Database with papers loaded.
+    """
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / f"{release_id}" / "papers")
+    if not _check_papers_exist(release_id=release_id):
+        return None
+
+    json_files = list(files_path.glob("**/*.json"))
+    logger.info(f"Processing files in '{files_path}'")
+
+    database_path = (
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / f"{release_id}" / "papers" / "database"
+    )
+    database_path.mkdir(parents=True, exist_ok=True)
+    if (database_path / "papers.db").exists():
+        (database_path / "papers.db").unlink()
+
+    collection = sifts.Collection(
+        db_url=f"sqlite:///{database_path / 'papers.db'}",
+        name="papers",
+    )
+
+    start = pendulum.now()
+    total_papers = 0
+    for json_file in tqdm(json_files, total=len(json_files)):
+        df = pd.read_json(json_file)
+        df = df[["paperId", "title", "abstract"]]
+        total_papers += df.shape[0]
+
+        for _, r in df.iterrows():
+            text = f"{r['title'].strip()} {r['abstract'].strip() if r['abstract'] else ""}"
+
+            collection.add(
+                contents=[text],
+                ids=[r["paperId"]],
+            )
+    end = pendulum.now()
+    duration = end - start
+    logger.info(
+        f"{total_papers:,} papers loaded to database '{release_id}.db' in {duration.in_words()}"
+    )
+    return collection
+
+
+def get_papers_from_search_with_sifts(
+    query: Query, collection: CollectionBase, top_n: int | None = None
+):
+    """Returns a list with papers that pass the filter.
+
+    The results are sorted by `rank` which is similar to the bm25_function.
+    https://www.sqlite.org/fts5.html#the_bm25_function
+    "The better the match, the numerically smaller the [rank] value returned."
+
+    Args:
+        query (Query): Query with keywords and logic operators to search in papers.
+        collection (CollectionBase): Database.
+        top_n (int | None, optional): How many papers to return. Defaults to None.
+
+    Returns:
+        (list): Paper ids of the papers that pass the filter.
+    """
+    results = collection.query(query.query)
+    df = pd.DataFrame(results["results"]).sort_values(by=["rank"]).reset_index(drop=True)
+    paper_ids = df["id"].to_list()[: top_n or df.shape[0]]
+    logger.info(
+        f'{len(paper_ids):,} papers out of {results["total"]:,} results from {collection.count():,} papers in the database for {query.name}'
+    )
+    return paper_ids
+
+
+def execute_all_search_queries_sift(release_id: str):
+    """Run the string searches using a SQLite database with sifts.
+
+    Args:
+        release_id (str): Release version from Semantic Scholar with format
+            'YYYY-MM-DD'.
+    """
+    # Creates and load the database with papers if they exist
+    collection = load_documents_to_database(release_id=release_id)
+    if collection is None:
+        return
+
+    # Create the output directory
+    output_dir = Path(
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "sifts"
+    )
+    output_dir.mkdir(exist_ok=True, parents=True)
+    for query in ALL_SEARCH_QUERIES:
+        papers = get_papers_from_search_with_sifts(query=query, collection=collection)
+        save_selected_papers(
+            paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
+        )

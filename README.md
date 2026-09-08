@@ -74,7 +74,10 @@ uv run kibad-crawler download-publication-venues
 uv run kibad-crawler download-publication-venues --release 2026-05-26
 
 uv run kibad-crawler download-paper-metadata --help
+
 uv run kibad-crawler run-string-searches --help
+uv run kibad-crawler run-string-searches --method sifts
+uv run kibad-crawler run-string-searches --method plain
 ```
 
 ## Download algorithm
