@@ -17,8 +17,8 @@ flowchart LR
     filter_publication_venue --> paper_dataset(Download **paper** Dataset)
     paper_dataset --> filter_dates{Filter paper metadata by publication_id and publication dates}
     filter_dates --> abstract_dataset(Download paper's **abstracts** using S2 API)
-    end
     abstract_dataset --> search_string{Query Search filter using title and abstract}
+    end
     subgraph To be implemented
     search_string --> download_pdf(Download PDF)
     download_pdf --> relevance_filter{Relevance Filter using content}
@@ -74,6 +74,7 @@ uv run kibad-crawler download-publication-venues
 uv run kibad-crawler download-publication-venues --release 2026-05-26
 
 uv run kibad-crawler download-paper-metadata --help
+uv run kibad-crawler run-string-searches --help
 ```
 
 ## Download algorithm

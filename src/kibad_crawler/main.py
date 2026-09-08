@@ -4,6 +4,7 @@ from typing import Annotated
 from loguru import logger
 import typer
 
+from kibad_crawler.basic_filter import execute_all_search_queries
 from kibad_crawler.config import RAW_DATA_DIR
 from kibad_crawler.papers import PaperSearch, get_papers
 from kibad_crawler.semantic_scholar import datasets
@@ -177,6 +178,26 @@ def download_paper_metadata(
             persistent=persistent,
         )
     logger.info("finished successfully")
+
+
+@app.command()
+def run_string_searches(
+    release: Annotated[
+        str | None,
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
+        ),
+    ] = None,
+):
+    """Execute string searches to filter papers based on Habitats and Topic
+    Areas.
+
+    - Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
+        & Floodplains", "Coasts & Coastal Waters".
+    - Topic Areas: "Trends", "Drivers", "Measures", "Ecosystem Services"
+    """
+    release_id = release or datasets.get_available_releases()[-1]
+    execute_all_search_queries(release_id=release_id)
 
 
 if __name__ == "__main__":

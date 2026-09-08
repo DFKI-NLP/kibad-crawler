@@ -15,6 +15,7 @@ from pyparsing import (
 )
 
 from kibad_crawler.config import INTERIM_DATA_DIR, RAW_DATA_DIR
+from kibad_crawler.search_queries import ALL_SEARCH_QUERIES, Query
 
 and_ = CaselessLiteral("and")
 or_ = CaselessLiteral("or")
@@ -92,7 +93,15 @@ def get_papers_from_search(query: str, files_path: Path) -> list:
     return paper_filter
 
 
-def save_selected_papers(paper_ids: list, query_name: str, release_id: str):
+def save_selected_papers(paper_ids: list, query: Query, release_id: str):
+    """Save to disk a list of papers in JSON format.
+
+    Args:
+        paper_ids (list): IDs of the papers to be saved.
+        query (Query): Query to include its name to include in the JSON file.
+        release_id (str): Release to find the directory with papers to execute
+            the queries.
+    """
     # papers
     files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
     json_files = files_path.glob("**/*.json")
@@ -111,6 +120,61 @@ def save_selected_papers(paper_ids: list, query_name: str, release_id: str):
 
     # Save selected papers by query name
     df_papers = pd.concat(data).reset_index(drop=True)
-    df_papers.to_json(output_dir / f"{query_name}.json", index=False, orient="records")
+    df_papers.to_json(
+        output_dir / f"{query.id} - {query.name}.json", index=False, orient="records"
+    )
 
-    logger.info(f'{len(paper_ids):,} papers saved to "{output_dir / f"{query_name}.json"}"')
+    logger.info(
+        f'{len(paper_ids):,} "{query.name}" papers saved to "{output_dir / f"{query.id} {query.name}.json"}"'
+    )
+
+
+def _check_papers_exist(release_id: str) -> bool:
+    """Check whether the directory exists or not. Returns False if does not
+    exists and True if it does.
+
+    Args:
+        release_id (str): Release id.
+
+    Returns:
+        bool: True if directory exists.
+    """
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
+    if not files_path.exists():
+        logger.info(f"'{release_id}' no papers found in {files_path}")
+        logger.warning(
+            "Please download paper metadata first using `uv run kibad-crawler download-paper-metadata`"
+        )
+        return False
+    return True
+
+
+def execute_all_search_queries(release_id: str):
+    """Execute all the search queries that are in the system.
+
+    Args:
+        release_id (str): Release to find the directory where the paper's
+            metadata is stored.
+    """
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
+    if not _check_papers_exist(release_id=release_id):
+        return
+
+    for query in ALL_SEARCH_QUERIES:
+        papers = get_papers_from_search(query=query.query, files_path=files_path)
+        save_selected_papers(paper_ids=papers, query=query, release_id=release_id)
+
+
+def execute_search_query(release_id: str, query: Query):
+    """Execute a single search query on the papers of a given release.
+
+    Args:
+        release_id (str): Release to find the papers.
+        query (Query): Query object to search in all the papers.
+    """
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
+    if not _check_papers_exist(release_id=release_id):
+        return
+
+    papers = get_papers_from_search(query=query.query, files_path=files_path)
+    save_selected_papers(paper_ids=papers, query=query, release_id=release_id)
