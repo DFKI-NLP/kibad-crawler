@@ -18,9 +18,9 @@ flowchart LR
     paper_dataset --> filter_dates{Filter paper metadata by publication_id and publication dates}
     filter_dates --> abstract_dataset(Download paper's **abstracts** using S2 API)
     abstract_dataset --> search_string{Query Search filter using title and abstract}
+    search_string --> download_pdf(Download PDF)
     end
     subgraph To be implemented
-    search_string --> download_pdf(Download PDF)
     download_pdf --> relevance_filter{Relevance Filter using content}
     relevance_filter --> postprocessing(Postprocessing)
     end
@@ -78,6 +78,9 @@ uv run kibad-crawler download-paper-metadata --help
 uv run kibad-crawler run-string-searches --help
 uv run kibad-crawler run-string-searches --method sifts
 uv run kibad-crawler run-string-searches --method plain
+
+uv run kibad-crawler download-open-access-files --help
+uv run kibad-crawler download-open-access-files
 ```
 
 ## Download algorithm

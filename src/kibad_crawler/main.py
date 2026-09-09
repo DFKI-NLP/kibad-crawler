@@ -8,8 +8,8 @@ from kibad_crawler.basic_filter import (
     execute_all_search_queries,
     execute_all_search_queries_sift,
 )
-from kibad_crawler.config import RAW_DATA_DIR
-from kibad_crawler.papers import PaperSearch, get_papers
+from kibad_crawler.config import INTERIM_DATA_DIR, RAW_DATA_DIR
+from kibad_crawler.papers import PaperSearch, download_pdf_files, get_papers
 from kibad_crawler.semantic_scholar import datasets
 from kibad_crawler.utils import get_issn_codes
 
@@ -196,8 +196,7 @@ def run_string_searches(
         typer.Option(help="Search string with simple search or with sifts library."),
     ] = "sifts",
 ):
-    """Execute string searches to filter papers based on Habitats and Topic
-    Areas.
+    """Execute string searches to filter papers based on Habitats and Topic Areas.
 
     - Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
         & Floodplains", "Coasts & Coastal Waters".
@@ -208,6 +207,21 @@ def run_string_searches(
         execute_all_search_queries(release_id=release_id)
     elif method == "sifts":
         execute_all_search_queries_sift(release_id=release_id)
+
+
+@app.command()
+def download_open_access_files(
+    release: Annotated[
+        str | None,
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
+        ),
+    ] = None,
+):
+    """Download open access papers."""
+    release_id = release or datasets.get_available_releases()[-1]
+    input_path = INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
+    download_pdf_files(input_path=input_path, release_id=release_id)
 
 
 if __name__ == "__main__":

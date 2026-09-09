@@ -8,11 +8,15 @@ from pathlib import Path
 
 from loguru import logger
 import pandas as pd
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
+import requests
+from retry import retry
 from tqdm import tqdm
 
-from kibad_crawler.config import MAX_NUM_BATCH_PAPERS
+from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, PROCESSED_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
-from kibad_crawler.utils import chunker
+from kibad_crawler.utils import chunker, get_human_readable_size
 
 
 @dataclass
@@ -125,3 +129,125 @@ def get_abstracts(file_path: Path):
         json_file = json_path / f"papers-metadata-{i}.json"
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(response_batch, f)
+
+
+def _is_valid_pdf(pdf_path: Path) -> bool:
+    """Check whether or not a downloaded pdf file is valid.
+
+    Args:
+        pdf_path (Path): Path to the PDF file.
+
+    Returns:
+        bool: False if not valid.
+    """
+    try:
+        _ = PdfReader(pdf_path)
+    except PdfReadError:
+        return False
+    else:
+        return True
+
+
+@retry(delay=3, tries=3)
+def download_open_access_pdf(
+    url: str,
+    path: Path,
+    file_name: str,
+    chunk_size: int = 8 * 1024 * 1024,
+    overwrite: bool = False,
+) -> Path:
+    """Download file from a `url` and stores it to a `path`.
+
+    Args:
+        url (str): URL to the file.
+        path (Path): Path where to store the downloaded file.
+        file_name (str): Name of the file which will be f"{paperId}.pdf"
+        chunk_size (int, optional): Size of chunks to store. Defaults to 10*1024.
+        overwrite (bool, optional): Whether or not overwrite a file that
+            has been already downloaded. Defaults to False.
+
+    Returns:
+        Path: Path to the stored file.
+    """
+    # FIXME 403 responses from MDPI website, try playwrith or curff
+    path.mkdir(parents=True, exist_ok=True)
+    out_path = path / file_name
+
+    if not overwrite and out_path.exists():
+        logger.info(f"{file_name} - already downloaded")
+        return out_path
+
+    logger.info(f"{file_name} - downloading '{url}' -> '{out_path}'")
+
+    with requests.get(url, stream=True, allow_redirects=True, timeout=60) as response:
+        logger.info(f"{file_name} - {response.status_code} status code")
+        if response.status_code == 403:
+            return out_path
+        response.raise_for_status()
+        with open(out_path, mode="wb") as f:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                f.write(chunk)
+
+    logger.info(
+        f"{file_name} - downloaded {get_human_readable_size(int(response.headers['Content-Length']))}"
+    )
+    if not _is_valid_pdf(pdf_path=out_path):
+        out_path.unlink()
+        logger.error(f"{file_name} - deleting '{out_path}' invalid PDF file.")
+
+    return out_path
+
+
+def download_pdf_files(input_path: Path, release_id: str):
+    """Handles the downloading of all the papers from in a directory. It
+    expects JSON files with semantic scholar structure including columns such
+    as: ["paperId", "openAccessPdf.url", "isOpenAccess", "openAccessPdf.url"]
+
+    Args:
+        input_path (Path): Path where to find JSON files with paper metadata.
+        release_id (str): Release to generate then output folder to save the
+            files.
+    """
+    # Find all the JSON files with paper metadata from semantic scholar
+    files = [x for x in Path(input_path).glob("**/*.json")]
+
+    if len(files) == 0:
+        logger.info(f"Finished. No papers to download found for '{release_id}' release.")
+
+    dfs = []
+    papers_found = 0
+    for file in files:
+        with open(file) as f:
+            data = json.load(f)
+
+        df_aux = pd.json_normalize(data)
+        papers_found += df_aux.shape[0]
+        dfs.append(df_aux)
+
+    logger.info(f"{papers_found:,} papers found in '{input_path}'")
+
+    # Expects semantic scholar columns ["paperId", "openAccessPdf.url", "isOpenAccess", "openAccessPdf.url"]
+    df = pd.concat(dfs)
+    df.reset_index(drop=True, inplace=True)
+    df = df[
+        (df["openAccessPdf.url"].map(lambda x: len(x) > 0)) & (df["isOpenAccess"].map(lambda x: x))
+    ]
+    df = df[["paperId", "openAccessPdf.url"]].drop_duplicates()
+    df.reset_index(drop=True, inplace=True)
+
+    logger.info(f"{df.shape[0]:,} open access papers to be downloaded")
+
+    # directory to save the PDF files
+    output_dir = (
+        PROCESSED_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "pdf"
+    )
+
+    # sequential download of the files
+    for i, r in df.iterrows():
+        download_open_access_pdf(
+            url=r["openAccessPdf.url"], path=output_dir, file_name=f'{r["paperId"]}.pdf'
+        )
+
+    logger.info(
+        f"PDF Download successfully finished! {len(list(output_dir.glob("**/*.pdf"))):,} out of {df.shape[0]:,} papers downloaded"
+    )

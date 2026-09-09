@@ -35,6 +35,7 @@ dependencies = [
     "pendulum>=3.2.0",
     "pyparsing>=3.3.2",
     "sifts>=1.3.1",
+    "pypdf>=6.18.0",
 ]
 
 [dependency-groups]
