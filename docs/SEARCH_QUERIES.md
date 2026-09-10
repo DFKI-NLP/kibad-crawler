@@ -41,7 +41,7 @@ Habitats:
 
 > **Note 1**: The search queries replicates the queries documented in the
 > [Search Strings](https://docs.google.com/document/d/1eOERoaJ4nrdC8TiU65rP7i3W8r2P6yE5sQtGS2Sha9s/edit?tab=t.0#heading=h.bp1imz678xa) document.
-> **Note 2**: The assumption is that the string queries should cover the combination of topic arenas and habitats.
+> **Note 2**: The assumption is that the string queries should cover the combination of topic areas and habitats.
 
 The search queries implement the following structure:
 
