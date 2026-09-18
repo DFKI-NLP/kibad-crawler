@@ -74,6 +74,9 @@ uv run kibad-crawler download-publication-venues
 uv run kibad-crawler download-publication-venues --release 2026-05-26
 
 uv run kibad-crawler download-paper-metadata --help
+
+uv run kibad-crawler download-paper-metadata-diff --help
+uv run kibad-crawler download-paper-metadata-diff --start-release 2026-09-01
 ```
 
 ## Download algorithm
@@ -124,47 +127,45 @@ Args:
 available_releases = datasets.get_available_releases()
 release_id = release or available_releases[-1]
 
-# (step 2) Get publication venues from the release
-links_publication_venues = datasets.download_links(release_id, "publication-venues")
-output_path = datasets.download_dataset_from_semantic_scholar(
-    url=links_publication_venues["files"][0],
-    output_path=RAW_DATA_DIR
-    / "semantic_scholar"
-    / "release"
-    / release_id
-    / "publication_venues",
+# (steps 2 to 4) Get publication venue ids of the release from the ISSN codes
+publication_venue_ids = get_publication_venue_ids(
+    release_id=release_id, file_with_issn=file_with_issn
 )
-df_venues = datasets.read_publication_venues(file_path=output_path)
-
-# (step 3) Get publication ids from ISSN code to filter publication venues
-issn = get_issn_codes(file_with_issn)
-
-# (step 4) Extract ids from publication-venues
-publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
-
-# (step 5) Get the links to the metadata files of the papers
-links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
 
 # (steps 6 and 7)
 search_params = PaperSearch(
-    publication_venue_ids=publication_venue_ids,  # type: ignore
+    publication_venue_ids=publication_venue_ids,
     min_publication_date=min_publication_date,
     max_publication_date=max_publication_date,
     min_citation_count=min_citation_count,
 )
 
+# (step 5) Get the links to the metadata files of the papers
+links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
+urls = links_papers["files"] if n_files == 0 else links_papers["files"][:n_files]
+
 # (steps 8 to 11) Downloads files with the actual metadata of the papers
-output_path_papers = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
-for url in links_papers["files"][: len(links_papers) if n_files == 0 else n_files]:
-    get_papers(
-        url=url,
-        output_path=output_path_papers,
-        search_params=search_params,
-        overwrite=overwrite,
-        persistent=persistent,
-    )
+get_papers_from_files(
+    urls=urls,
+    output_path=RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers",
+    search_params=search_params,
+    overwrite=overwrite,
+    persistent=persistent,
+)
 logger.info("finished successfully")
 ```
+
+## Download papers between releases
+
+Semantic Scholar publishes a new release about every week. Instead of processing all the files of a new release again, the call `uv run kibad-crawler download-paper-metadata-diff --start-release <release>` uses the [incremental diffs](https://api.semanticscholar.org/api-docs/datasets) between two releases:
+
+1. Get the diffs between `--start-release` (a release that is already downloaded) and `--end-release` (the latest release by default). Each diff covers two consecutive releases and contains `update_files` (new or changed papers) and `delete_files` (removed papers).
+1. Get the publication venue ids of the end release from the `ISSN` codes, as in the full download.
+1. Filter the `update_files` of each diff with the same functions as `download-paper-metadata` (venue, publication date and citation count) and download the metadata of the matching papers, including abstracts.
+
+The results of each diff are stored in their own folder with the same structure as the full download: `semantic_scholar/release/<to_release>/diffs/<from_release>_to_<to_release>/papers/`.
+
+> **Note**: The `delete_files` are only reported in the log, they are not applied. Changed papers that were already downloaded with the full release are saved again in the diff folder.
 
 <!--
 ## S2 API client (class and methods)
