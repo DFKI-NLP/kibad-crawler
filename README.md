@@ -165,7 +165,13 @@ Semantic Scholar publishes a new release about every week. Instead of processing
 
 The results of each diff are stored in their own folder with the same structure as the full download: `semantic_scholar/release/<to_release>/diffs/<from_release>_to_<to_release>/papers/`.
 
-> **Note**: The `delete_files` are only reported in the log, they are not applied. Changed papers that were already downloaded with the full release are saved again in the diff folder.
+### Why it works like this
+
+- **Why diffs:** Each release is a full snapshot of all papers. Processing all files of release `2026-09-01` took about 7 hours on the cluster ([#14](https://github.com/DFKI-NLP/kibad-crawler/issues/14)). A diff only contains the papers that changed between two releases, so regular updates need less time and download.
+- **Why the same functions:** The `update_files` of a diff have the same format as the files of a full release. Only the list of files is different, so both calls use `get_publication_venue_ids` and `get_papers_from_files` from `papers.py`. A change in the filtering applies to both calls.
+- **Why a separate folder per diff:** The data of the full release stays unchanged, and each folder shows which papers came with which diff. A diff can be processed again or removed without touching the rest.
+- **Why `delete_files` are not applied:** Applying them means merging the diffs into the data of the full release. This is left for later (see "Handle paper updates" in [#3](https://github.com/DFKI-NLP/kibad-crawler/issues/3)). For now, the number of delete files is written to the log.
+- **Why changed papers are saved again:** For the same reason, a paper that changed (e.g. a new citation count) is saved again in the diff folder instead of replacing the version from the full release.
 
 <!--
 ## S2 API client (class and methods)
