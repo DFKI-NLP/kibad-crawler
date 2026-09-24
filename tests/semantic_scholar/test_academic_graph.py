@@ -37,10 +37,12 @@ def test_batch_default_fields(monkeypatch, make_response):
 
     academic_graph.batch(["id-1"])
 
-    # the fields needed by the next steps of the crawler are requested by default
+    # TODO: I think this is bad practice, we should not rely on defaults but explicitly request what we need later.
+    #
+    # assert that the fields needed by the next steps of the crawler are requested by default
     fields = calls[0]["params"]["fields"].split(",")
-    for field in ["paperId", "title", "abstract", "openAccessPdf", "publicationDate"]:
-        assert field in fields
+    required_fields = ["paperId", "title", "abstract", "openAccessPdf", "publicationDate"]
+    assert set(fields).issuperset(required_fields)
 
 
 def test_batch_more_than_500_ids(monkeypatch, no_retry_delay):
