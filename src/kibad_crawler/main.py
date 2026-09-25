@@ -2,8 +2,8 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from loguru import logger
-import typer
 from rich import print as print_rich
+import typer
 
 from kibad_crawler.basic_filter import (
     execute_all_search_queries,
@@ -11,9 +11,9 @@ from kibad_crawler.basic_filter import (
 )
 from kibad_crawler.config import RAW_DATA_DIR
 from kibad_crawler.papers import PaperSearch, get_papers
+from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 from kibad_crawler.semantic_scholar import datasets
 from kibad_crawler.utils import get_issn_codes
-from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 
 app = typer.Typer()
 
@@ -224,7 +224,7 @@ def run_string_searches(
 
     For example, a search query to filter by trends in forest habitats in Germany would be:
 
-    `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decreas*" OR "gain*)`
+    `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
 
     > Note: Search queries contain more extense than two words per concept.
     > Note: Queries are pre-loaded and cannot be modified by a user.
@@ -258,7 +258,7 @@ def string_search_info():
     for query in ALL_SEARCH_QUERIES:
         logger.info(f"Query: {query.id} - {query.name}")
 
-    logger.info("")  # to generate a spece between the query list and the detail
+    logger.info("")  # to generate a space between the query list and the detail
 
     for query in ALL_SEARCH_QUERIES:
         logger.info("=" * (len(query.name) + len(query.id) + 10))

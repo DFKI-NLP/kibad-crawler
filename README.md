@@ -182,16 +182,17 @@ and more documentation can be found in [`docs/SEARCH_QUERIES.md`](./docs/SEARCH_
 uv run kibad-crawler run-string-searches
 ```
 
-`run-string-searches` will execute all the string searches available in the 
-`search_queries.py` module. The results (paper selection based on keyword 
+`run-string-searches` will execute all the string searches available in the
+`search_queries.py` module. The results (paper selection based on keyword
 searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
 
 The workflow is as follows:
+
 1. Given a release, it searches the paper metadata downloaded based on
     publication venues, publication dates, and citation count.
-2. Using all the search queries defined in `search_queries.py` it applies
+1. Using all the search queries defined in `search_queries.py` it applies
     one by one to each paper.
-3. Save the papers's metadata results to
+1. Save the papers's metadata results to
     `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
     by query, with file names such as: `Q1 - Forest - Trends.json`,
     `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
@@ -206,12 +207,13 @@ six Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
 
 For example, a search query to filter by trends in forest habitats in Germany would be:
 
-`("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decreas*" OR "gain*)`
+`("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
 
 > Note: Search queries contain more extense than two words per concept.
 > Note: Queries are pre-defined and cannot be modified by a user.
 
 Two methods to run the query searches. Defaults to `sifts`.
+
 - `sifts`: implements keywrod searches with SQLite FTS5 that handles special
     characters.
 - `plain`: that is an ad-hoc implementation that checks for the appearance
