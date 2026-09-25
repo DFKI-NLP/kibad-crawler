@@ -55,6 +55,7 @@ To download the files with paper metadata, it is required:
 
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
     - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
+    - The key is required to get the download links of the datasets, i.e. for `download-publication-venues` and `download-paper-metadata`. Without a valid key the API answers `401 {"error":"A valid API key is required"}`. Listing the releases and the metadata requests to the Academic Graph API work without a key.
 - A CSV file with column names with the string "`ISSN`" that is used to filter papers by publication venue. The CSV file must be saved to [`./data/raw/journals.csv`](/data/raw/journals.csv)
     - The existing `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
 
@@ -63,6 +64,10 @@ To download the files with paper metadata, it is required:
 > publication venues on the subject of biodiversity. This file is used to
 > select specific publication venues from which papers will be checked and can
 > be modified to include or remove publication venues.
+
+> **Note**: On a cluster, the commands have to run on a compute node, e.g. with
+> `srun`. The pinned numpy version requires a CPU with the x86-64-v2 instruction
+> set, which the login nodes of Pegasus do not provide (`NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)`).
 
 # Usage
 
