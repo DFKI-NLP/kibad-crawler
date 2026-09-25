@@ -1,3 +1,50 @@
+"""
+Defines search queries for keyword filtering research topics focused on
+biodiversity dynamics in German regions including forest and habitat
+environments, organized by dimension (Trends, Drivers, Conservation Measures,
+Ecosystem Services) and categorized by Habitat (Forest, Soil, Agricultural/Open
+Land, Inland Water, Coasts).
+
+Provides Query dataclass instances with query texts associated with their
+corresponding topic and habitat categories.
+
+```
+...
+class Habitat(Enum):
+    "Habitats."
+
+    FOREST = "Forest"
+    SOIL = "Soil"
+    AGRI = "Agricultural and Open Land"
+    INLAND_WATER = "Inland waters & Floodplains"
+    COAST = "Coasts & Coastal Waters"
+
+class Topic(Enum):
+    "Topics."
+
+    TRENDS = "Trends"
+    DRIVERS = "Drivers"
+    MEASURES = "Measures"
+    ECO_SERVICES = "Ecosystem Services"
+
+@dataclass
+class Query:
+    id: str
+    name: str
+    query: str
+    habitat: Habitat
+    topic: Topic
+
+ALL_SEARCH_QUERIES = [
+    Query("Q1", "Forest - Trends", FOREST_TRENDS, Habitat.FOREST, Topic.TRENDS),
+    Query("Q2", "Forest - Drivers", FOREST_DRIVERS, Habitat.FOREST, Topic.DRIVERS),
+    Query("Q3", "Forest - Measures", FOREST_MEASURES, Habitat.FOREST, Topic.MEASURES),
+    Query("Q4", "Forest - Ecosystem Services", FOREST_ECO_SERVICES, Habitat.FOREST, Topic.ECO_SERVICES),
+    ...
+    ]
+```
+"""
+
 from dataclasses import dataclass
 from enum import Enum
 
