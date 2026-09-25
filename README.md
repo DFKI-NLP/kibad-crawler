@@ -78,6 +78,9 @@ uv run kibad-crawler download-paper-metadata --help
 uv run kibad-crawler run-string-searches --help
 uv run kibad-crawler run-string-searches --method sifts
 uv run kibad-crawler run-string-searches --method plain
+
+uv run kibad-crawler string-search-info --help
+uv run kibad-crawler string-search-info
 ```
 
 ## Download algorithm
@@ -169,6 +172,50 @@ for url in links_papers["files"][: len(links_papers) if n_files == 0 else n_file
     )
 logger.info("finished successfully")
 ```
+
+## Keyword string queries
+
+The keyword searches are defined in [`search_queries.py`](./src/kibad_crawler/search_queries.py)
+and more documentation can be found in [`docs/SEARCH_QUERIES.md`](./docs/SEARCH_QUERIES.md).
+
+```bash
+uv run kibad-crawler run-string-searches
+```
+
+`run-string-searches` will execute all the string searches available in the 
+`search_queries.py` module. The results (paper selection based on keyword 
+searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
+
+The workflow is as follows:
+1. Given a release, it searches the paper metadata downloaded based on
+    publication venues, publication dates, and citation count.
+2. Using all the search queries defined in `search_queries.py` it applies
+    one by one to each paper.
+3. Save the papers's metadata results to
+    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
+    by query, with file names such as: `Q1 - Forest - Trends.json`,
+    `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
+    `Q4 - Forest - Ecosystem Services.json`, etc.
+
+Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
+
+The search queries are composed by keywords and logical operators representing
+six Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
+& Floodplains", and "Coasts & Coastal Waters"; and four Topic Areas:
+"Trends", "Drivers", "Measures", and "Ecosystem Services".
+
+For example, a search query to filter by trends in forest habitats in Germany would be:
+
+`("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decreas*" OR "gain*)`
+
+> Note: Search queries contain more extense than two words per concept.
+> Note: Queries are pre-defined and cannot be modified by a user.
+
+Two methods to run the query searches. Defaults to `sifts`.
+- `sifts`: implements keywrod searches with SQLite FTS5 that handles special
+    characters.
+- `plain`: that is an ad-hoc implementation that checks for the appearance
+    of the keywords in the paper metadata, ignoring special characters.
 
 <!--
 ## S2 API client (class and methods)

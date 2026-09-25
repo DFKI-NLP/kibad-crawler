@@ -200,7 +200,7 @@ def run_string_searches(
         ),
     ] = "sifts",
 ):
-    """Execute all the string searches available in `search_queries.py` module.
+    """Execute all the string searches available in the `search_queries.py` module.
     The results (paper selection based on keyword searches) are saved to
     `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
 
