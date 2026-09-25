@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 
 from loguru import logger
 import typer
+from rich import print as print_rich
 
 from kibad_crawler.basic_filter import (
     execute_all_search_queries,
@@ -12,6 +13,7 @@ from kibad_crawler.config import RAW_DATA_DIR
 from kibad_crawler.papers import PaperSearch, get_papers
 from kibad_crawler.semantic_scholar import datasets
 from kibad_crawler.utils import get_issn_codes
+from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 
 app = typer.Typer()
 
@@ -188,26 +190,83 @@ def run_string_searches(
     release: Annotated[
         str | None,
         typer.Option(
-            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
         ),
     ] = None,
     method: Annotated[
         Literal["sifts", "plain"],
-        typer.Option(help="Search string with simple search or with sifts library."),
+        typer.Option(
+            help="Search string with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
+        ),
     ] = "sifts",
 ):
-    """Execute string searches to filter papers based on Habitats and Topic
-    Areas.
+    """Execute all the string searches available in `search_queries.py` module.
+    The results (paper selection based on keyword searches) are saved to
+    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
 
-    - Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
-        & Floodplains", "Coasts & Coastal Waters".
-    - Topic Areas: "Trends", "Drivers", "Measures", "Ecosystem Services"
+    The workflow is as follows:
+    1. Given a release, it searches the paper metadata downloaded based on
+        publication venues, publication dates, and citation count.
+    2. Using all the search queries defined in `search_queries.py` it applies
+        one by one to each paper.
+    3. Save the papers's metadata results to
+        `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
+        by query, with file names such as: `Q1 - Forest - Trends.json`,
+        `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
+        `Q4 - Forest - Ecosystem Services.json`, etc.
+
+    Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
+
+    The search queries are composed by keywords and logical operators representing
+    six Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
+    & Floodplains", and "Coasts & Coastal Waters"; and four Topic Areas:
+    "Trends", "Drivers", "Measures", and "Ecosystem Services".
+
+    For example, a search query to filter by trends in forest habitats in Germany would be:
+
+    `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decreas*" OR "gain*)`
+
+    > Note: Search queries contain more extense than two words per concept.
+    > Note: Queries are pre-loaded and cannot be modified by a user.
+
+    Two methods to run the query searches. Defaults to `sifts`.
+    - `sifts`: implements keywrod searches with SQLite FTS5 that handles special
+        characters.
+    - `plain`: that is an ad-hoc implementation that checks for the appearance
+        of the keywords in the paper metadata, ignoring special characters.
     """
     release_id = release or datasets.get_available_releases()[-1]
     if method == "plain":
         execute_all_search_queries(release_id=release_id)
     elif method == "sifts":
         execute_all_search_queries_sift(release_id=release_id)
+
+
+@app.command()
+def string_search_info():
+    """Show all string search queries available.
+
+    The search queries are composed by keywords and logical operators representing
+    the combination of six Habitats: "Forest", "Soil", "Agricultural and Open
+    Land", "Inland waters & Floodplains", and "Coasts & Coastal Waters"; and
+    four Topic Areas: "Trends", "Drivers", "Measures", and "Ecosystem Services".
+    """
+
+    logger.info(
+        f"There are currently {len(ALL_SEARCH_QUERIES)} string search queries in the system."
+    )
+    for query in ALL_SEARCH_QUERIES:
+        logger.info(f"Query: {query.id} - {query.name}")
+
+    logger.info("")  # to generate a spece between the query list and the detail
+
+    for query in ALL_SEARCH_QUERIES:
+        logger.info("=" * (len(query.name) + len(query.id) + 10))
+        logger.info(f"Query: {query.id} - {query.name}")
+        logger.info("=" * (len(query.name) + len(query.id) + 10))
+        print_rich(
+            f"{query.query.replace('OR', '[yellow]OR[/yellow]').replace('AND', '[red]\nAND\n[/red]').replace('(', '[yellow]([/yellow]').replace(')', '[yellow])[/yellow]')}"
+        )
 
 
 if __name__ == "__main__":
