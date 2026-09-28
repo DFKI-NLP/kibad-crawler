@@ -118,14 +118,6 @@ ignore = [
 max-line-length = 99
 
 [tool.codespell]
-exclude = [
-    ".git",
-    "notebooks",
-    "models",
-    "data",
-    "logs",
-    ".src/kibad_crawler/search_queries",
-]
 ignore-words-list = "hist"
 skip = "logs/**,data/**,tests/fixtures/**.json,tests/fixtures/**.jsonl,*.ipynb,src/kibad_crawler/search_queries*,notebooks/query_strings.yml,docs/SEARCH_QUERIES.md,src/kibad_crawler/search_queries*"
 
