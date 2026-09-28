@@ -196,11 +196,13 @@ def run_string_searches(
     method: Annotated[
         Literal["sifts", "plain"],
         typer.Option(
-            help="Search string with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
+            help="Search strings with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
         ),
     ] = "sifts",
 ):
-    """Execute all the string searches available in the `search_queries.py` module.
+    """
+    Select papers based on keyword search. This filters a Semantic Scholar release
+    by executing all the string searches available in the `search_queries.py` module.
     The results (paper selection based on keyword searches) are saved to
     `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
 
@@ -216,24 +218,6 @@ def run_string_searches(
         `Q4 - Forest - Ecosystem Services.json`, etc.
 
     Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
-
-    The search queries are composed by keywords and logical operators representing
-    six Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
-    & Floodplains", and "Coasts & Coastal Waters"; and four Topic Areas:
-    "Trends", "Drivers", "Measures", and "Ecosystem Services".
-
-    For example, a search query to filter by trends in forest habitats in Germany would be:
-
-    `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
-
-    > Note: Search queries contain more extense than two words per concept.
-    > Note: Queries are pre-loaded and cannot be modified by a user.
-
-    Two methods to run the query searches. Defaults to `sifts`.
-    - `sifts`: implements keywrod searches with SQLite FTS5 that handles special
-        characters.
-    - `plain`: that is an ad-hoc implementation that checks for the appearance
-        of the keywords in the paper metadata, ignoring special characters.
     """
     release_id = release or datasets.get_available_releases()[-1]
     if method == "plain":
@@ -250,6 +234,13 @@ def string_search_info():
     the combination of six Habitats: "Forest", "Soil", "Agricultural and Open
     Land", "Inland waters & Floodplains", and "Coasts & Coastal Waters"; and
     four Topic Areas: "Trends", "Drivers", "Measures", and "Ecosystem Services".
+
+    For example, a search query to filter by trends in forest habitats in Germany would be:
+
+    `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
+
+    > Note: Real search queries extend beyond two words per concept.
+    > Note: Queries are pre-loaded and cannot be modified by a user.
     """
 
     logger.info(
