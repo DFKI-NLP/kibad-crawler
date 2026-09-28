@@ -3,6 +3,10 @@
 
 exclude: "^data/.*|^tests/fixtures/.*"
 
+# Match the project's minimum Python version and the code quality CI job.
+default_language_version:
+  python: python3.12
+
 repos:
   # Core housekeeping
   - repo: https://github.com/pre-commit/pre-commit-hooks

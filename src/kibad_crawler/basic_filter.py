@@ -1,5 +1,11 @@
+"""Filter Semantic Scholar paper metadata using configured search queries.
+
+Search titles and abstracts directly in JSON files or through a SQLite index
+managed by sifts, and save matching paper records as JSON for each query.
+"""
+
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from loguru import logger
 import pandas as pd
