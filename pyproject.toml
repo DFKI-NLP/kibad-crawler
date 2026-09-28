@@ -33,8 +33,8 @@ dependencies = [
     "jupyter>=1.1.1,<2.0.0",             # to run jupyter notebooks
     "matplotlib>=3.10.8,<4.0.0",         # to run eval notebook (create plots)
     "pendulum>=3.2.0",
-    "pyparsing>=3.3.2",
-    "sifts>=1.3.1",
+    "pyparsing>=3.3.2,<4.0.0",
+    "sifts>=1.3.1,<2.0.0",
 ]
 
 [dependency-groups]
