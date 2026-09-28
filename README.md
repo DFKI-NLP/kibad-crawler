@@ -209,12 +209,15 @@ For example, a search query to filter by trends in forest habitats in Germany wo
 
 `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
 
-> Note: Search queries contain more extense than two words per concept.
-> Note: Queries are pre-defined and cannot be modified by a user.
+> [!NOTE]
+> Search queries contain more extent than two words per concept.
+
+> [!NOTE]
+> Queries are pre-defined and cannot be modified by a user.
 
 Two methods to run the query searches. Defaults to `sifts`.
 
-- `sifts`: implements keywrod searches with SQLite FTS5 that handles special
+- `sifts`: implements keyword searches with SQLite FTS5 that handles special
     characters.
 - `plain`: that is an ad-hoc implementation that checks for the appearance
     of the keywords in the paper metadata, ignoring special characters.
