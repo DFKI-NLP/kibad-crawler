@@ -37,7 +37,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.cache/prek
-          key: ${{ steps.prek-cache.outputs.result }}-${{ hashFiles('.prek-config.yaml') }}
+          key: ${{ steps.prek-cache.outputs.result }}-${{ hashFiles('.pre-commit-config.yaml') }}
           restore-keys: |
             ${{ steps.prek-cache.outputs.result }}-
       - name: Run preks
