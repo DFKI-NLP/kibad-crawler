@@ -1,0 +1,753 @@
+Biodiversity: &biodiversity
+  words:
+    - species richness
+    - species number*
+    - number of species
+    - species identity
+    - species composition
+    - species abundance
+    - species divers*
+    - species evenness
+    - diversity
+    - biodivers*
+    - biodiversity hotspot*
+    - genetic* divers*
+    - genetic* richness
+    - landscape divers*
+    - landscape structure
+    - landscape composition
+    - habitat divers*
+    - habitat structure
+    - habitat composition
+    - seascape structure
+    - structur* divers*
+    - community composition
+    - ecosystem* divers*
+    - ecosystem* structure
+    - ecosystem composition
+    - phylogenetic* divers*
+    - phylogenetic* richness
+    - number of taxa
+    - taxonomic* divers*
+    - taxonomic* richness
+    - functional* divers*
+    - functional* richness
+    - functional* composition
+    - functional* evenness
+    - functional* dissimilarity
+    - functional* similarity
+    - shannon
+    - simpson
+    - evenness
+    - richness
+    - biomass
+    - abundance
+    - density
+    - communit*
+Deutschland: &deutschland
+  words:
+    - German*
+    - central europ*
+    - Lower Saxony
+    - Thuringia
+    - Saarland
+    - Berlin*
+    - Brandenburg*
+    - Saxon*
+    - Saxony-Anhalt
+    - Bavar*
+    - Baden-Wuerttemberg
+    - Bremen
+    - Hamburg
+    - Hess*
+    - Mecklenburg-Western
+    - Pomerania
+    - North RhineWestphalia
+    - Rhineland-Palatinate
+    - Schleswig-Holstein
+Wald:
+  Lebensraum: &lebensraum
+    words:
+      - Forest*
+      - wood*
+      - stock of trees
+      - stand
+      - stands
+      - plantation*
+      - maple stand*
+      - birch stand*
+      - beech stand*
+      - rowan stand*
+      - yew stand*
+      - oak
+      - stand*
+      - alder stand*
+      - ash stand*
+      - spruce stand*
+      - hornbeam stand*
+      - hazel stand*
+      - chestnut stand*
+      - pine stand*
+      - larch stand*
+      - linden stand*
+      - poplar stand*
+      - sloe stand*
+      - fir stand*
+      - willow stand*
+      - hawthorne stand*
+      - elm stand*
+      - deciduous
+      - coniferous
+      - mixed forest*
+      - mixed woodland*
+      - coppice
+      - copse
+  Trends:
+    concepts:
+      - [*biodiversity, *deutschland, *lebensraum]
+    words:
+      - trend*
+      - chang*
+      - decreas*
+      - gain*
+      - increas*
+      - los*
+      - loss*
+      - reduc*
+      - declin*
+      - extinct*
+      - develop*
+      - species loss
+      - biodiversity loss
+      - grow*
+      - endangered species
+      - extinct species
+  Treiber:
+    concepts:
+      - [*biodiversity, *deutschland, *lebensraum]
+    words:
+      - habitat chang*
+      - habitat loss*
+      - habitat modification*
+      - habitatchang*
+      - habitat-loss*
+      - land use chang*
+      - landscape chang*
+      - land-use chang*
+      - deforest*
+      - fragmentation
+      - degrad*
+      - land-use intensification
+      - afforestation
+      - road construction
+      - urban pressure
+      - settlement pressure
+      - forest degradation
+      - extensive land*use
+      - litter use
+      - clearcut*
+      - wind throw*
+      - driv*
+      - pressur*
+      - stressor*
+      - biomass extract*
+      - raw material extract*
+      - resource extract*
+      - wood
+      - timber
+      - lumber
+      - hunt*
+      - poach*
+      - extract*
+      - overexploit*
+      - water extract*
+      - wood fuel*
+      - climate chang*
+      - climate warming
+      - extreme weather event*
+      - global warming
+      - global* chang*
+      - carbon dioxide
+      - GHG*
+      - greenhouse gas*
+      - CO2
+      - warming
+      - drought
+      - weather extreme*
+      - heat wave*
+      - late frost
+      - heavy rain event*
+      - storm*
+      - flood event
+      - flooding
+      - contaminat*
+      - pollut*
+      - anthropogenic greenhouse effect
+      - heavy metal*
+      - toxi*
+      - “nutrient content”
+      - nutrient input
+      - liming OR pesticide*
+      - alien species
+      - introduced species
+      - invasi*
+      - non-native species
+      - Bundeswaldgesetz
+      - Landeswaldgesetz
+      - Bundesnaturschutzgesetz
+      - BNatSchG
+      - Landesnaturschutzgesetz
+      - LNatSchG
+      - Klimaschutzgesetz
+      - FFH
+      - Natura2000
+      - Convention on Biological Diversity
+      - CBD
+      - Biodiversitätsstrategie*
+      - Waldstrategie*
+      - market*
+      - commodity trad*
+      - global demand
+      - urban forest owner*
+      - social change
+      - demography
+      - awareness
+  Maßnahmen:
+    concepts:
+      - [*biodiversity, *deutschland, *lebensraum]
+    words: protected area*
+      national park*
+      nature park*
+      biosphere reserve*
+      biotope*
+      area conservation
+      species conservation
+      nature conservation
+      landscape conservation
+      habitat*
+      priority area
+      sanctuary
+      reserve
+      natural park*
+      natural reserve*
+      natural preserve*
+      wildlife park
+      species protection
+      protection of species
+      nature protection
+      landscape protection
+      conservation
+      close to nature
+      near to nature
+      process protection
+      landscape conservation
+      extensiv*
+      maintenance measure*
+      monitoring
+      control*
+      renatur*
+      restor*
+      regenerat*
+      replacement measure*
+      substitut* measure*
+      ecopoints
+      compensat*
+      measure*
+      land purchase
+      parcel exchange
+      repopulation
+      reintroduc*
+      environmental education
+      raising awareness
+      certification
+      landscaping
+      landscape maintenance
+      alternative measures
+      eco-points
+      land acquisition
+      remedial action*
+      manag*
+      conservation measure*
+  ÖSL:
+    concepts:
+      - [*biodiversity, *deutschland, *lebensraum]
+    words: carbon sequestration
+      carbon cycling
+      primary production
+      carbon storage
+      biomass production
+      soil organic carbon
+      decomposition
+      dissolved organic carbon
+      carbon leaching
+      CO2 emission
+      black carbon
+      bioenergy production
+      tillage
+      harvest residues
+      biofuel
+      peat
+      peat extraction
+      peat decomposition
+      methane emission
+      paludiculture
+      timber product*
+      wood product*
+      firewood
+      deadwood
+      coarse woody debris
+      carbon sedimentation
+      sediment retention
+      energy production
+      carbon emission
+      carbon loss
+      primary production
+      fuelwood extraction
+      bioeconomy
+      fossil fuel substitution
+      soil organic matter
+      agroforestry
+      soil erosion
+      carbon burial
+      Stabilität / Resilienz im Klimawandel
+      climate regulation
+      albedo
+      cooling
+      flood regulation
+      flood protection
+      water retention
+      fire protection
+      erosion protection
+      resilience
+      climate stability
+      drought stability
+      heat stability
+      temperature stability
+      climate resistance
+      climate resilience
+      buffering
+      heat stress
+      drought stress
+      hotter drought
+      droughtrelated mortality
+      heat-related mortality
+      radiation balance
+      absorption
+      heating
+      climate mitigation
+      shading
+      transpiration
+      evaporation
+      desiccation
+      latent heat production
+      sensible heat production
+      invasive pathogens
+      invasive pests
+      calamity
+      frass
+      fire
+      ignition
+      burning
+      fire fuel
+      combustion
+      fire resistance
+      fire damage
+      flood
+      flood attenuation
+      flood retention
+      anoxia
+      flooding resistance
+      flood defen?e
+      wetlands
+      flood storage
+      flood generation
+      flood detention
+      flood event
+      natural retention
+      impacts of climate change
+      Ästhetik, Kultur
+      recreation
+      cultural
+      spiritual
+      intellectual
+      cultural heritage
+      learning
+      inspiration
+      physical experience
+      psychological experience
+      cultural service*
+      ecotourism*
+      education
+      sport*
+      hiking
+      biking
+      climbing
+      sailing
+      fishing
+      hunting
+      mental health
+      religion
+      perception
+      valuation
+      quality of life
+      well-being
+      extinction of experience
+      preference*
+      scenic beauty
+      aesthetic
+      tourism
+      appreciation
+      aesthetic value
+      health
+      relax*
+      fitness
+      leisure
+      recov*
+      rehab*
+      artistic*
+      entertain*
+      enjoy*
+      adventur*
+      inspir*
+      aware*
+ÖSL:
+  Querschnitt: &querschnitt
+    concepts:
+      - [*biodiversity, *deutschland]
+    words:
+      - carbon sequestration
+      - carbon cycling
+      - primary production
+      - carbon storage
+      - biomass production
+      - soil organic carbon
+      - decomposition
+      - dissolved organic carbon
+      - carbon leaching
+      - CO2 emission
+      - black carbon
+      - bioenergy production
+      - tillage
+      - harvest residues
+      - biofuel
+      - peat
+      - peat extraction
+      - peat decomposition
+      - methane emission
+      - paludiculture
+      - timber produc*
+      - wood product*
+      - firewood
+      - deadwood
+      - coarse woody debris
+      - carbon sedimentation
+      - sediment retention
+      - energy production
+      - carbon emission
+      - carbon loss
+      - primary production
+      - fuelwood extraction
+      - bioeconomy
+      - fossil fuel substitution
+      - soil organic matter
+      - agroforestry
+      - soil erosion
+      - carbon burial
+      - climate regulation
+      - albedo
+      - cooling
+      - flood regulation
+      - flood protection
+      - water retention
+      - fire protection
+      - erosion protection
+      - resilience
+      - climate stability
+      - drought stability
+      - heat stability
+      - temperature stability
+      - climate resistance
+      - climate resilience
+      - buffering
+      - heat stress
+      - drought stress
+      - hotter drought
+      - drought-related mortality
+      - heat-related mortality
+      - radiation balance
+      - absorption
+      - heating
+      - climate mitigation
+      - shading
+      - transpiration
+      - evaporation
+      - desiccation
+      - latent heat production
+      - sensible heat production
+      - invasive pathogens
+      - invasive pests
+      - calamity
+      - frass
+      - fire
+      - ignition
+      - burning
+      - fire fuel
+      - combustion
+      - fire resistance
+      - fire damage
+      - flood
+      - flood attenuation
+      - flood retention
+      - anoxia
+      - flooding resistance
+      - flood defen?e
+      - wetlands
+      - flood storage
+      - flood generation
+      - flood detention
+      - flood event
+      - natural retention
+      - impacts of climate change
+      - recreation
+      - cultural
+      - spiritual
+      - intellectual
+      - cultural heritage
+      - learning
+      - physical experience
+      - psychological experience
+      - cultural service*
+      - ecotourism
+      - aesthetic*
+      - education
+      - sports
+      - hiking
+      - biking
+      - climbing
+      - sailing
+      - fishing
+      - hunting
+      - mental health
+      - religion
+      - perception
+      - valuation
+      - quality of life
+      - well-being
+      - extinction of experience
+      - preference*
+      - scenic beauty
+      - tourism
+      - appreciation
+      - aesthetic value
+      - health
+      - relax*
+      - fitness
+      - leisure
+      - recov*
+      - rehab*
+      - artistic*
+      - entertain*
+      - enjoy*
+      - adventur*
+      - inspir*
+      - aware*
+  Lebensräume:
+    concepts:
+      - [*biodiversity, *deutschland, *querschnitt]
+    words: agricultur*
+      - open landscapes
+      - grassland*
+      - peatland*
+      - plain*
+      - field*
+      - farmland*
+      - Forest*
+      - wood*
+      - stock of trees
+      - stand
+      - stands
+      - plantation
+      - inland water*
+      - floodplain*
+      - freshwater
+      - river*
+      - lake*
+      - pond*
+      - stream*
+      - groundwater
+      - spring*
+      - wetland*
+      - inland wetland*
+      - peatland*
+      - bog*
+      - marsh*
+      - swamp*
+      - North Sea
+      - Helgoland
+      - Sylt
+      - Wadden Sea
+      - Weser
+      - Elbe
+      - Ems
+      - barrier island
+      - frisian island*
+      - German Bight
+      - baltic
+      - Kiel fjord
+      - Flensborg fjord
+      - urban*
+      - metropol*
+      - city
+      - cities
+      - capital
+      - municipal*
+      - town
+      - settlement
+      - built-up area*
+      - artificial*
+      - area*
+      - sealed area*
+      - impervious
+      - suburban
+      - peri-urban
+      - anthropogenic
+      - neighbourhood
+      - building*
+      - brownfield*
+      - ruderal
+      - remnant
+      - Central Business District
+Boden:
+  Lebensraum:
+    group_1: &lebensraum_group_1
+      - soil
+      - soil-dwelling
+      - below$ground
+      - below-ground
+    group_2: &lebensraum_group_2
+      - biota
+      - fauna
+      - micro$fauna
+      - micro-fauna
+      - meso$fauna
+      - meso-fauna
+      - macro$fauna
+      - macrofauna
+      - mega$fauna
+      - mega-fauna
+      - protozoa*
+      - bacteria*
+      - proteobacteria*
+      - cyanobacteria*
+      - actinobacteria*
+      - firmicutes
+      - archaea
+      - euryarchaeota
+      - crenarchaeota
+      - thaumarchaeota
+      - protist*
+      - rhizaria
+      - ameb*
+      - amoeb*
+      - alveolat*
+      - stramenopile*
+      - excavata
+      - fung*
+      - ascomyc*
+      - basidiomyc*
+      - glomeromyc*
+      - zygomyc*
+      - chytridiomyc*
+      - blastocladiomyc*
+      - microb*
+      - animal*
+      - rotifer*
+      - nematod*
+      - mollusc*
+      - gastropod*
+      - snail*
+      - slug*
+      - annelid*
+      - oligochaet*
+      - earthworm*
+      - lumbricid*
+      - enchytrae*
+      - clitellat*
+      - haplotaxid*
+      - tardigrad*
+      - arthropod*
+      - micro$arthropod*
+      - micro-arthropod*
+      - macro$arthropod*
+      - macro-arthropod*
+      - chelicerat*
+      - arachnid*
+      - acari
+      - mite*
+      - araneae
+      - spider*
+      - pseudoscorpion*
+      - scorpion*
+      - myriapod*
+      - chilopod*
+      - centiped*
+      - diplopod*
+      - milliped*
+      - pauropod*
+      - symphyla*
+      - crustacea*
+      - malacostraca*
+      - isopod*
+      - lice
+      - hexapod*
+      - entognath*
+      - collembol*
+      - springtail*
+      - protura*
+      - diplura*
+      - insect*
+      - hymenopter*
+      - sawfl*
+      - wasp*
+      - ant*
+      - isopter*
+      - termite*
+      - coleopter*
+      - beetle*
+      - dipter*
+      - fly
+      - flies
+      - hemipter*
+      - cicada*
+      - aphid*
+      - planthopper*
+      - leafhopper*
+      - bug*
+      - lepidopter*
+      - butterfly*
+      - moth*
+      - neuropter*
+      - lacewing*
+      - mantidfl*
+      - antlion*
+      - inverte*
+      - chordat*
+      - vertebrat*
+      - amphibia*
+      - frog*
+      - toad*
+      - salamander*
+      - newt*
+      - reptil*
+      - mammal*
+      - hamster*
+      - mole*
+    group_3: &lebensraum_group_3
+      - soil biodiversity
+      - below$ground biodiversity
+      - soil divers*
+      - below$ground divers*
+    query:
+      - *lebensraum_group_1
+      - *lebensraum_group_2
+      - *lebensraum_group_3

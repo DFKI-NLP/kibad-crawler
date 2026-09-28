@@ -3,6 +3,10 @@
 
 exclude: "^data/.*|^tests/fixtures/.*"
 
+# Match the project's minimum Python version and the code quality CI job.
+default_language_version:
+  python: python3.12
+
 repos:
   # Core housekeeping
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -72,18 +76,18 @@ repos:
     rev: 1.9.1
     hooks:
       - id: nbqa-black
-        priority: 10  # run when black runs
+        priority: 10 # run when black runs
       - id: nbqa-isort
-        priority: 20  # run when isort runs
+        priority: 20 # run when isort runs
       - id: nbqa-flake8
-        priority: 40  # run when flake8 runs
+        priority: 40 # run when flake8 runs
 
   # Markdown formatter (reads [tool.mdformat] via plugin)
   - repo: https://github.com/hukkin/mdformat
     rev: 0.7.22
     hooks:
       - id: mdformat
-        priority: 70  # run when black runs
+        priority: 70 # run when black runs
         additional_dependencies:
           - mdformat-gfm
           - mdformat-tables
@@ -96,8 +100,8 @@ repos:
     rev: "1.8.6"
     hooks:
       - id: bandit
-        args: ["-c", "pyproject.toml"]          # tell bandit to read pyproject
-        additional_dependencies: ["bandit[toml]"]  # ensure TOML support
+        args: ["-c", "pyproject.toml"] # tell bandit to read pyproject
+        additional_dependencies: ["bandit[toml]"] # ensure TOML support
         priority: 80
 
   # Spelling checker (reads [tool.codespell] from pyproject.toml)
@@ -107,7 +111,7 @@ repos:
       - id: codespell
         # For Python < 3.11, TOML parsing needs tomli
         additional_dependencies: ["tomli"]
-        priority: 80  # run when bandit runs
+        priority: 80 # run when bandit runs
 
   - repo: local
     hooks:
@@ -118,7 +122,8 @@ repos:
         args: [mypy, --config-file=pyproject.toml]
         types: [python]
         pass_filenames: false
-        priority: 80  # run when bandit runs
+        priority: 80 # run when bandit runs
+
 
 #  - repo: local
 #    hooks:

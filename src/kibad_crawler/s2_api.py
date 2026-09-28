@@ -10,28 +10,25 @@ from pathlib import Path
 import time
 from typing import Any, Literal
 
+from loguru import logger
 import pandas as pd
 import requests
 from retry import retry
 from tqdm import tqdm
 
+from kibad_crawler.config import (
+    DELAY_S2_API,
+    MAX_NUM_BATCH_PAPERS,
+    RAW_DATA_DIR,
+    S2_API_KEY,
+)
+from kibad_crawler.relevance import filter_papers
+from kibad_crawler.s2_models import (
+    DiffResponse,
+    RecommendationsResponse,
+    RelevanceFilter,
+)
 from kibad_crawler.utils import get_human_readable_size
-
-from .config import DELAY_S2_API, MAX_NUM_BULK_PAPERS, RAW_DATA_DIR, S2_API_KEY
-from .relevance import filter_papers
-from .s2_models import DiffResponse, RecommendationsResponse, RelevanceFilter
-
-logger: Any
-
-try:
-    from loguru import logger as logger_logger
-except ImportError:
-    import logging
-
-    logger = logging.getLogger(__name__)
-else:
-    logger = logger_logger
-
 
 DatasetName = Literal[
     "abstracts",
@@ -93,7 +90,7 @@ def get_publication_venue_id_from_issn_codes(
 
 
 @dataclass
-class S2Client:
+class SemanticScholarAPIClient:
     """Client for Semantic Scholar Datasets API, incremental diffs, and Recommendations API."""
 
     def __init__(
@@ -142,6 +139,8 @@ class S2Client:
             pd.DataFrame: Publication venues of the given `release_id`.
         """
         release_id = release_id or self.latest_release
+        assert release_id in self.releases, f"'{release_id}' must be a valid release id."
+
         publication_venues_file_path = self.download_publication_venues(release_id=release_id)
         with gzip.open(
             publication_venues_file_path,
@@ -152,7 +151,7 @@ class S2Client:
         df_venues = pd.read_json(StringIO(file_content.decode()), lines=True)
         return df_venues
 
-    @retry(delay=2, tries=3)
+    @retry(delay=5, tries=3)
     def get_dataset_url(
         self, dataset_name: DatasetName, release_id: str | None = None
     ) -> requests.Response:
@@ -170,6 +169,7 @@ class S2Client:
         logger.debug(
             f"Acquiring links for dataset: release='{release_id}' dataset='{dataset_name}'"
         )
+        time.sleep(DELAY_S2_API)
         response = requests.get(url, headers=self._headers, timeout=self._timeout_download)
         time.sleep(DELAY_S2_API)
         response.raise_for_status()
@@ -450,8 +450,8 @@ class S2Client:
         json_path.mkdir(parents=True, exist_ok=True)
 
         for i, group in tqdm(
-            enumerate(chunker(paper_ids, MAX_NUM_BULK_PAPERS)),
-            total=int(len(paper_ids) / MAX_NUM_BULK_PAPERS),
+            enumerate(chunker(paper_ids, MAX_NUM_BATCH_PAPERS)),
+            total=int(len(paper_ids) / MAX_NUM_BATCH_PAPERS),
             desc="Downloading metadata",
         ):
             response_batch = self.download_bulk_paper(group)
@@ -478,7 +478,7 @@ class S2Client:
             requests.Response: API response.
         """
         url = f"{BASE_URL_GRAPH}/paper/batch"
-        ids = paper_ids[:MAX_NUM_BULK_PAPERS]
+        ids = paper_ids[:MAX_NUM_BATCH_PAPERS]
         logger.debug(f"Bulk paper request: {len(ids)} IDs")
         time.sleep(DELAY_S2_API)
         response = requests.post(
@@ -499,7 +499,7 @@ class S2Client:
         """Return list of release IDs (YYYY-MM-DD), oldest first. Latest is last."""
         url = f"{BASE_URL_DATASETS}/release"
         logger.debug(f"Fetching releases: {url}")
-        response = requests.get(url, headers=self._headers, timeout=self._timeout_request)
+        response = requests.get(url, timeout=self._timeout_request)
         time.sleep(DELAY_S2_API)
         response.raise_for_status()
         data = response.json()
@@ -664,72 +664,3 @@ class S2Client:
             list: Subset of papers that satisfy all criteria.
         """
         return filter_papers(papers, criteria)
-
-
-_default_client: S2Client | None = None
-
-
-def _client() -> S2Client:
-    global _default_client
-    if _default_client is None:
-        _default_client = S2Client()
-    return _default_client
-
-
-# Backward-compatible module-level API (notebook and existing code)
-
-
-def download_dataset(
-    release_id: str,
-    dataset_name: DatasetName,
-) -> requests.Response:
-    """Download dataset from Semantic Scholar API. See S2Client.download_dataset."""
-    return _client().get_dataset_url(release_id=release_id, dataset_name=dataset_name)
-
-
-def download_file(url: str, path: Path, chunk_size: int = 10 * 1024) -> Path:
-    """Download file from URL to path. See S2Client.download_file."""
-    return _client().download_file(url=url, path=path, chunk_size=chunk_size)
-
-
-def download_paper_batch(
-    url: str,
-    release_path: Path,
-    publication_venue_ids: list,
-    persistent: bool = False,
-    start_date: str = "2023-01-01",
-) -> None:
-    """Download a single papers dataset file; filter by venue/date; save CSV. See S2Client.download_paper_batch."""
-    _client().download_paper_batch(
-        url=url,
-        release_path=release_path,
-        publication_venue_ids=publication_venue_ids,
-        persistent=persistent,
-        start_date=start_date,
-    )
-
-
-def download_all_papers(
-    file_list: list[str],
-    release_path: Path,
-    publication_venue_ids: list[str],
-    start_date: str = "2023-01-01",
-    persistent: bool = False,
-) -> None:
-    """Download all paper files; filter by venue/date; save CSVs. See S2Client.download_all_papers."""
-    # TODO Add a min publication date and a max publication date to filter papers
-    _client().download_all_papers(
-        file_list=file_list,
-        release_path=release_path,
-        publication_venue_ids=publication_venue_ids,
-        start_date=start_date,
-        persistent=persistent,
-    )
-
-
-def download_bulk_paper(
-    paper_ids: list,
-    fields: str = "corpusId,url,title,abstract,venue,publicationVenue,year,citationCount,isOpenAccess,openAccessPdf,publicationDate,journal,fieldsOfStudy,s2FieldsOfStudy,authors,tldr,publicationTypes,textAvailability",
-) -> requests.Response:
-    """Bulk query S2 API for paper metadata. See S2Client.download_bulk_paper."""
-    return _client().download_bulk_paper(paper_ids=paper_ids, fields=fields)
