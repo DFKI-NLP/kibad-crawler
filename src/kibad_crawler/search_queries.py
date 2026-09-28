@@ -8,7 +8,7 @@ Land, Inland Water, Coasts).
 Provides Query dataclass instances with query texts associated with their
 corresponding topic and habitat categories.
 
-More information about the origin of the searcg queries can be found in
+More information about the origin of the search queries can be found in
 `./docs/SEARCH_QUERIES.md`.
 
 ```
@@ -153,7 +153,7 @@ METRICS = """(conservation OR "protect*" OR "restaur*" OR "renatur*" OR "preserv
 
 
 class Habitat(Enum):
-    "Habitats."
+    """Habitats."""
 
     FOREST = "Forest"
     SOIL = "Soil"
@@ -163,7 +163,7 @@ class Habitat(Enum):
 
 
 class Topic(Enum):
-    "Topics."
+    """Topics."""
 
     TRENDS = "Trends"
     DRIVERS = "Drivers"
