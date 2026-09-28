@@ -175,6 +175,8 @@ logger.info("finished successfully")
 
 ## Keyword string queries
 
+Keyword search queries are used to filter the papers by title and abstract.
+
 The keyword searches are defined in [`search_queries.py`](./src/kibad_crawler/search_queries.py)
 and more documentation can be found in [`docs/SEARCH_QUERIES.md`](./docs/SEARCH_QUERIES.md).
 
@@ -198,6 +200,13 @@ The workflow is as follows:
     `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
     `Q4 - Forest - Ecosystem Services.json`, etc.
 
+Two methods to run the query searches. Defaults to `sifts`.
+
+- `sifts`: implements keyword searches with SQLite FTS5 that handles special
+    characters.
+- `plain`: that is an ad-hoc implementation that checks for the appearance
+    of the keywords in the paper metadata, ignoring special characters.
+
 Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
 
 The search queries are composed by keywords and logical operators representing
@@ -210,17 +219,10 @@ For example, a search query to filter by trends in forest habitats in Germany wo
 `("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
 
 > [!NOTE]
-> Search queries contain more extent than two words per concept.
+> Real search queries extend beyond two words per concept.
 
 > [!NOTE]
 > Queries are pre-defined and cannot be modified by a user.
-
-Two methods to run the query searches. Defaults to `sifts`.
-
-- `sifts`: implements keyword searches with SQLite FTS5 that handles special
-    characters.
-- `plain`: that is an ad-hoc implementation that checks for the appearance
-    of the keywords in the paper metadata, ignoring special characters.
 
 <!--
 ## S2 API client (class and methods)
