@@ -17,8 +17,8 @@ flowchart LR
     filter_publication_venue --> paper_dataset(Download **paper** Dataset)
     paper_dataset --> filter_dates{Filter paper metadata by publication_id and publication dates}
     filter_dates --> abstract_dataset(Download paper's **abstracts** using S2 API)
-    end
     abstract_dataset --> search_string{Query Search filter using title and abstract}
+    end
     subgraph To be implemented
     search_string --> download_pdf(Download PDF)
     download_pdf --> relevance_filter{Relevance Filter using content}
@@ -55,6 +55,7 @@ To download the files with paper metadata, it is required:
 
 - A SemanticScholar API key that can be requested [here](https://www.semanticscholar.org/product/api)
     - Add it to the `.env` file on this repo as `S2_API_KEY=YOURAPIKEYFROMSEMANTICSCHOLAR`.
+    - The key is required to get the download links of the datasets, i.e. for `download-publication-venues` and `download-paper-metadata`. Without a valid key the API answers `401 {"error":"A valid API key is required"}`. Listing the releases and the metadata requests to the Academic Graph API work without a key.
 - A CSV file with column names with the string "`ISSN`" that is used to filter papers by publication venue. The CSV file must be saved to [`./data/raw/journals.csv`](/data/raw/journals.csv)
     - The existing `journals.csv` is generated from this [spreadsheet](https://docs.google.com/spreadsheets/d/1ugPuiRNmcVYWcV98TvXsyqVwJYhmk2iZjZ4o9estM2Y/edit?gid=1647072097#gid=1647072097) that contains publication venues with their corresponding ISSN codes.
 
@@ -63,6 +64,10 @@ To download the files with paper metadata, it is required:
 > publication venues on the subject of biodiversity. This file is used to
 > select specific publication venues from which papers will be checked and can
 > be modified to include or remove publication venues.
+
+> **Note**: On a cluster, the commands have to run on a compute node, e.g. with
+> `srun`. The pinned numpy version requires a CPU with the x86-64-v2 instruction
+> set, which the login nodes of Pegasus do not provide (`NumPy was built with baseline optimizations: (X86_V2) but your machine doesn't support: (X86_V2)`).
 
 # Usage
 
@@ -77,6 +82,13 @@ uv run kibad-crawler download-paper-metadata --help
 
 uv run kibad-crawler download-paper-metadata-diff --help
 uv run kibad-crawler download-paper-metadata-diff --start-release 2026-09-01
+
+uv run kibad-crawler run-string-searches --help
+uv run kibad-crawler run-string-searches --method sifts
+uv run kibad-crawler run-string-searches --method plain
+
+uv run kibad-crawler string-search-info --help
+uv run kibad-crawler string-search-info
 ```
 
 ## Download algorithm
@@ -172,6 +184,57 @@ The results of each diff are stored in their own folder with the same structure 
 - **Why a separate folder per diff:** The data of the full release stays unchanged, and each folder shows which papers came with which diff. A diff can be processed again or removed without touching the rest.
 - **Why `delete_files` are not applied:** Applying them means merging the diffs into the data of the full release. This is left for later (see "Handle paper updates" in [#3](https://github.com/DFKI-NLP/kibad-crawler/issues/3)). For now, the number of delete files is written to the log.
 - **Why changed papers are saved again:** For the same reason, a paper that changed (e.g. a new citation count) is saved again in the diff folder instead of replacing the version from the full release.
+
+## Keyword string queries
+
+Keyword search queries are used to filter the papers by title and abstract.
+
+The keyword searches are defined in [`search_queries.py`](./src/kibad_crawler/search_queries.py)
+and more documentation can be found in [`docs/SEARCH_QUERIES.md`](./docs/SEARCH_QUERIES.md).
+
+```bash
+uv run kibad-crawler run-string-searches
+```
+
+`run-string-searches` will execute all the string searches available in the
+`search_queries.py` module. The results (paper selection based on keyword
+searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
+
+The workflow is as follows:
+
+1. Given a release, it searches the paper metadata downloaded based on
+    publication venues, publication dates, and citation count.
+1. Using all the search queries defined in `search_queries.py` it applies
+    one by one to each paper.
+1. Save the papers's metadata results to
+    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
+    by query, with file names such as: `Q1 - Forest - Trends.json`,
+    `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
+    `Q4 - Forest - Ecosystem Services.json`, etc.
+
+Two methods to run the query searches. Defaults to `sifts`.
+
+- `sifts`: implements keyword searches with SQLite FTS5 that handles special
+    characters.
+- `plain`: that is an ad-hoc implementation that checks for the appearance
+    of the keywords in the paper metadata, ignoring special characters.
+
+Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
+
+The search queries are composed by keywords and logical operators representing
+six Habitats: "Forest", "Soil", "Agricultural and Open Land", "Inland waters
+& Floodplains", and "Coasts & Coastal Waters"; and four Topic Areas:
+"Trends", "Drivers", "Measures", and "Ecosystem Services".
+
+For example, a search query to filter by trends in forest habitats in Germany would be:
+
+`("species richness" OR "species abundance") AND ("German*" OR "Lower Saxony") AND ("Forest*" OR "wood*") AND ("trend*" OR "decrease*" OR "gain*)`
+
+> [!NOTE]
+> Real search queries extend beyond two words per concept.
+
+> [!NOTE]
+> Queries are pre-defined and cannot be modified by a user.
 
 <!--
 ## S2 API client (class and methods)
