@@ -52,19 +52,52 @@ def test_api_call_post(monkeypatch, make_response, api_key: str | None) -> None:
         assert calls[0]["headers"] == {"x-api-key": "test-key"}
 
 
-def test_api_call_post_http_error(monkeypatch, make_response, no_retry_delay) -> None:
+@pytest.fixture
+def retry_delays(monkeypatch) -> list[float]:
+    """Skip the waiting time between attempts of the `@retry` decorator and
+    return the list of waiting times."""
+    delays: list[float] = []
+    monkeypatch.setattr("retry.api.time.sleep", lambda delay: delays.append(delay))
+    return delays
+
+
+@pytest.mark.parametrize(
+    "status_code, expected_calls",
+    [
+        # rate limit and server errors are retried
+        (429, 6),
+        (500, 6),
+        # other errors are raised directly, e.g. a missing API key
+        (401, 1),
+        (400, 1),
+    ],
+)
+def test_api_call_post_http_error(
+    monkeypatch, make_response, retry_delays, status_code: int, expected_calls: int
+) -> None:
     calls: list[dict] = []
 
     def fake_post(**kwargs):
         calls.append(kwargs)
-        return make_response(status_code=429)
+        return make_response(status_code=status_code)
 
     monkeypatch.setattr(utils.requests, "post", fake_post)
 
     with pytest.raises(requests.HTTPError):
         utils.api_call_post(url="https://api.semanticscholar.org", params={}, payload={})
-    # the call is retried 3 times before raising the error
-    assert len(calls) == 3
+    assert len(calls) == expected_calls
+    # the waiting time between attempts doubles each time
+    assert retry_delays == [3, 6, 12, 24, 48][: expected_calls - 1]
+
+
+def test_api_call_post_rate_limit_then_ok(monkeypatch, make_response, retry_delays) -> None:
+    responses = [make_response(status_code=429), make_response(content=b'{"ok": true}')]
+    monkeypatch.setattr(utils.requests, "post", lambda **kwargs: responses.pop(0))
+
+    response = utils.api_call_post(url="https://api.semanticscholar.org", params={}, payload={})
+
+    assert response.json() == {"ok": True}
+    assert retry_delays == [3]
 
 
 @pytest.mark.parametrize("api_key", [None, "test-key"])
@@ -92,19 +125,31 @@ def test_api_call_get(monkeypatch, make_response, api_key: str | None) -> None:
         assert calls[0]["headers"] == {"x-api-key": "test-key"}
 
 
-def test_api_call_get_http_error(monkeypatch, make_response, no_retry_delay) -> None:
+@pytest.mark.parametrize(
+    "status_code, expected_calls",
+    [
+        (429, 6),
+        (503, 6),
+        (401, 1),
+        (404, 1),
+    ],
+)
+def test_api_call_get_http_error(
+    monkeypatch, make_response, retry_delays, status_code: int, expected_calls: int
+) -> None:
     calls: list[dict] = []
 
     def fake_get(**kwargs):
         calls.append(kwargs)
-        return make_response(status_code=401)
+        return make_response(status_code=status_code)
 
     monkeypatch.setattr(utils.requests, "get", fake_get)
 
     with pytest.raises(requests.HTTPError):
         utils.api_call_get(url="https://api.semanticscholar.org")
-    # the call is retried 3 times before raising the error
-    assert len(calls) == 3
+    # only rate limit and server errors are retried, with a doubling waiting time
+    assert len(calls) == expected_calls
+    assert retry_delays == [3, 6, 12, 24, 48][: expected_calls - 1]
 
 
 def test_get_issn_codes(tmp_path: Path) -> None:

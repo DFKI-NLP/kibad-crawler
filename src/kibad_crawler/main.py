@@ -10,10 +10,14 @@ from kibad_crawler.basic_filter import (
     execute_all_search_queries_sift,
 )
 from kibad_crawler.config import RAW_DATA_DIR
-from kibad_crawler.papers import PaperSearch, get_papers
+from kibad_crawler.papers import (
+    PaperSearch,
+    get_papers,
+    get_papers_from_files,
+    get_publication_venue_ids,
+)
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 from kibad_crawler.semantic_scholar import datasets
-from kibad_crawler.utils import get_issn_codes
 
 app = typer.Typer()
 
@@ -146,38 +150,147 @@ def download_paper_metadata(
         release_id in available_releases
     ), f"'{release_id}' must be a valid release id. i.e.: {[x for x in reversed(available_releases[-3:])]}"
 
-    # Get publication venues from the release
-    links_publication_venues = datasets.download_links(release_id, "publication-venues")
-    output_path = datasets.download_dataset_from_semantic_scholar(
-        url=links_publication_venues["files"][0],
-        output_path=RAW_DATA_DIR
-        / "semantic_scholar"
-        / "release"
-        / release_id
-        / "publication_venues",
+    # Get publication venue ids from the ISSN codes to filter papers
+    publication_venue_ids = get_publication_venue_ids(
+        release_id=release_id, file_with_issn=file_with_issn
     )
-    df_venues = datasets.read_publication_venues(file_path=output_path)
-
-    # Get publication ids from ISSN code to filter publication venues
-    issn = get_issn_codes(file_with_issn)
-    publication_venue_ids = df_venues[df_venues["issn"].isin(issn)].id.unique()
-
-    # Get the links to the metadata files of the papers
-    links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
     search_params = PaperSearch(
-        publication_venue_ids=publication_venue_ids,  # type: ignore
+        publication_venue_ids=publication_venue_ids,
         min_publication_date=min_publication_date,
         max_publication_date=max_publication_date,
         min_citation_count=min_citation_count,
     )
     logger.info(f"{search_params}")
 
+    # Get the links to the metadata files of the papers
+    links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
+    urls = links_papers["files"] if n_files == 0 else links_papers["files"][:n_files]
+
     # Downloads files with the actual metadata of the papers
-    output_path_papers = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
-    for url in links_papers["files"][: len(links_papers) if n_files == 0 else n_files]:
-        get_papers(
-            url=url,
-            output_path=output_path_papers,
+    get_papers_from_files(
+        urls=urls,
+        output_path=RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers",
+        search_params=search_params,
+        overwrite=overwrite,
+        persistent=persistent,
+    )
+    logger.info("finished successfully")
+
+
+@app.command()
+def download_paper_metadata_diff(
+    start_release: Annotated[
+        str,
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD' that is already downloaded, e.g. with download-paper-metadata."
+        ),
+    ],
+    end_release: Annotated[
+        str | None,
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD' to update to. The latest release is used in case no release is provided."
+        ),
+    ] = None,
+    file_with_issn: Annotated[
+        str,
+        typer.Option(
+            help="CSV file with ISSN codes of publication venues used to filter publications from those venues."
+        ),
+    ] = str(RAW_DATA_DIR / "journals.csv"),
+    min_publication_date: Annotated[
+        str,
+        typer.Option(help="Minimum publiction date to search papers."),
+    ] = "2024-01-01",
+    max_publication_date: Annotated[
+        str,
+        typer.Option(help="Maximum publiction date to search papers."),
+    ] = datetime.now().strftime("%Y-%m-%d"),
+    min_citation_count: Annotated[
+        int,
+        typer.Option(help="Minimum citation count to select a paper."),
+    ] = 0,
+    overwrite: Annotated[
+        bool,
+        typer.Option(help="Whether or not to overwrite files already processed."),
+    ] = False,
+    persistent: Annotated[
+        bool,
+        typer.Option(
+            help="Whether or not to keep original files of metadata after filtering papers."
+        ),
+    ] = False,
+):
+    """Download metadata of the papers that changed between two releases.
+
+    Instead of processing all the files of a new release again, this uses the
+    incremental diffs from Semantic Scholar. Each diff covers two consecutive
+    releases and contains update files (new or changed papers) and delete
+    files (removed papers).
+
+    Workflow:
+
+    1. Get the diffs between --start-release and --end-release.
+
+    2. Load publication venues of the end release and match CSV ISSN values
+    to Semantic Scholar venue IDs.
+
+    3. Filter the update files of each diff the same way as
+    download-paper-metadata (venue, publication date and citation count) and
+    request the metadata, including abstracts, of the matching papers.
+
+    Delete files are only reported, they are not applied. Changed papers that
+    were already downloaded with the full release are saved again.
+
+    Output (under the project root), one folder per diff:
+    data/raw/semantic_scholar/release/<to_release>/diffs/<from_release>_to_<to_release>/papers/
+    with the same structure as the output of download-paper-metadata.
+    """
+
+    # Set start and end release
+    available_releases = datasets.get_available_releases()
+    end_release_id = end_release or available_releases[-1]
+    for release_id in [start_release, end_release_id]:
+        assert (
+            release_id in available_releases
+        ), f"'{release_id}' must be a valid release id. i.e.: {[x for x in reversed(available_releases[-3:])]}"
+    assert (
+        start_release < end_release_id
+    ), f"--start-release '{start_release}' must be older than --end-release '{end_release_id}'"
+
+    # Get the links to the diff files between both releases
+    diff_list = datasets.download_links_incremental_diffs(
+        dataset_name="papers", end_release_id=end_release_id, start_release_id=start_release
+    )
+    logger.info(f"{len(diff_list['diffs'])} diffs from '{start_release}' to '{end_release_id}'")
+
+    # Get publication venue ids from the ISSN codes to filter papers
+    publication_venue_ids = get_publication_venue_ids(
+        release_id=end_release_id, file_with_issn=file_with_issn
+    )
+    search_params = PaperSearch(
+        publication_venue_ids=publication_venue_ids,
+        min_publication_date=min_publication_date,
+        max_publication_date=max_publication_date,
+        min_citation_count=min_citation_count,
+    )
+    logger.info(f"{search_params}")
+
+    # Downloads the update files of each diff into its own folder
+    for diff in diff_list["diffs"]:
+        from_release, to_release = diff["from_release"], diff["to_release"]
+        logger.info(
+            f"diff '{from_release}' to '{to_release}': {len(diff['update_files'])} update files, "
+            f"{len(diff['delete_files'])} delete files (not applied)"
+        )
+        get_papers_from_files(
+            urls=diff["update_files"],
+            output_path=RAW_DATA_DIR
+            / "semantic_scholar"
+            / "release"
+            / to_release
+            / "diffs"
+            / f"{from_release}_to_{to_release}"
+            / "papers",
             search_params=search_params,
             overwrite=overwrite,
             persistent=persistent,

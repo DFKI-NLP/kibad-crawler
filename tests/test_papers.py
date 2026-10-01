@@ -108,6 +108,81 @@ def make_search_params(min_citation_count: int = 0) -> papers.PaperSearch:
     )
 
 
+def test_get_publication_venue_ids(tmp_path: Path, monkeypatch):
+    venues_url = (
+        "https://ai2-s2ag.s3.amazonaws.com/staging/2026-09-01/publication-venues/venues-0.gz"
+    )
+    download_calls: list[dict] = []
+
+    def fake_download_dataset_from_semantic_scholar(url, output_path):
+        download_calls.append({"url": url, "output_path": output_path})
+        file_path = tmp_path / "venues-0.gz"
+        venues = [
+            {"id": "venue-1", "name": "Forests", "issn": "1999-4907"},
+            {"id": "venue-2", "name": "PLOS ONE", "issn": "1932-6203"},
+            {"id": "venue-3", "name": "Other Journal", "issn": "0000-0000"},
+            {"id": "venue-4", "name": "Journal without ISSN", "issn": None},
+        ]
+        with gzip.open(file_path, "wt") as f:
+            f.write("\n".join(json.dumps(venue) for venue in venues))
+        return file_path
+
+    monkeypatch.setattr(
+        papers.datasets,
+        "download_links",
+        lambda release_id, dataset_name: {"files": [venues_url]},
+    )
+    monkeypatch.setattr(
+        papers.datasets,
+        "download_dataset_from_semantic_scholar",
+        fake_download_dataset_from_semantic_scholar,
+    )
+    csv_path = tmp_path / "journals.csv"
+    csv_path.write_text(
+        "Journal,Online ISSN,Print ISSN\nForests,1999-4907,\nPLOS ONE,,1932-6203\n"
+    )
+
+    publication_venue_ids = papers.get_publication_venue_ids(
+        release_id="2026-09-01", file_with_issn=csv_path
+    )
+
+    assert sorted(publication_venue_ids) == ["venue-1", "venue-2"]
+    # the publication venues are stored with the release they belong to
+    assert download_calls == [
+        {
+            "url": venues_url,
+            "output_path": papers.RAW_DATA_DIR
+            / "semantic_scholar"
+            / "release"
+            / "2026-09-01"
+            / "publication_venues",
+        }
+    ]
+
+
+def test_get_papers_from_files(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(papers, "get_papers", lambda **kwargs: calls.append(kwargs))
+    search_params = make_search_params()
+    urls = [FILE_URL, FILE_URL.replace("file-0", "file-1")]
+
+    papers.get_papers_from_files(
+        urls=urls, output_path=tmp_path, search_params=search_params, persistent=True
+    )
+
+    # each file is processed with the same output path and search parameters
+    assert calls == [
+        {
+            "url": url,
+            "output_path": tmp_path,
+            "search_params": search_params,
+            "overwrite": False,
+            "persistent": True,
+        }
+        for url in urls
+    ]
+
+
 @pytest.mark.parametrize(
     "min_citation_count, expected_corpus_ids",
     [
@@ -165,6 +240,26 @@ def test_get_papers_existing_csv(tmp_path: Path, downloads, abstracts, with_abst
     # the file is not downloaded again, only the abstracts are downloaded
     assert downloads == []
     assert abstracts == ([csv_path] if with_abstracts else [])
+
+
+def test_get_papers_no_matching_papers(tmp_path: Path, downloads, monkeypatch):
+    batches: list[list[str]] = []
+    monkeypatch.setattr(academic_graph, "batch", lambda ids: batches.append(ids))
+
+    # none of the papers in the file is from this venue
+    papers.get_papers(
+        url=FILE_URL,
+        output_path=tmp_path,
+        search_params=papers.PaperSearch(
+            publication_venue_ids=["venue-9"], max_publication_date="2026-09-11"
+        ),
+    )
+
+    # an empty CSV is saved, so the file is skipped in the next run, and no abstracts are requested
+    df_papers = pd.read_csv(tmp_path / "file-0.gz.csv")
+    assert df_papers.empty
+    assert batches == []
+    assert list((tmp_path / "file-0" / "json").glob("*.json")) == []
 
 
 def test_get_abstracts(tmp_path: Path, monkeypatch):
