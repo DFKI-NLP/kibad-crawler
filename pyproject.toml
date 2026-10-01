@@ -59,6 +59,7 @@ include = ["src/kibad_crawler"]
 typeguard-packages = "kibad_crawler"
 minversion = "6.0"
 testpaths = ["tests"]
+# calculate coverage per default, but only for the kibad_crawler package and report missing lines
 addopts = ["--cov=kibad_crawler", "--cov-report=term-missing"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
