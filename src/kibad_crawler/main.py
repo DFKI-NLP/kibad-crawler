@@ -126,8 +126,9 @@ def download_paper_metadata(
     compressed each. Actual file counts and sizes vary by release.
 
     On repeat runs, existing CSVs bypass downloading and filtering, even if
-    filter options change. API metadata is fetched again, overwriting JSON
-    files with matching names regardless of --overwrite.
+    filter options change, and JSON batches that are already stored are not
+    requested again. Use --overwrite to download them again, e.g. to update
+    the citation counts of papers that are already stored.
 
     Output (under the project root):
     data/raw/semantic_scholar/release/<release>/papers/ contains the filtered
