@@ -12,13 +12,11 @@ of `sifts`. See https://github.com/DFKI-NLP/kibad-crawler/issues/42.
 import os
 import sys
 
+from evaluation_utils import build_collection, report_overlap
 from loguru import logger
 import pandas as pd
 
-from kibad_crawler.basic_filter import (
-    get_papers_from_search_with_sifts,
-    load_documents_to_database,
-)
+from kibad_crawler.basic_filter import get_papers_from_search_with_sifts
 from kibad_crawler.config import RAW_DATA_DIR
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 
@@ -27,24 +25,29 @@ DOIS_FILE = os.path.join(BASE_DIR, "wald_dois_s2.csv")
 TOP_N = [100, 500, 1000, 5000]
 
 
-def get_paper_ids_of_release(release_id: str) -> set:
-    """Return the ids of the papers that the crawler downloaded for a release.
+def get_documents_of_release(release_id: str) -> list:
+    """Return the papers that the crawler downloaded for a release.
 
     Args:
         release_id (str): Release version from Semantic Scholar with format
             'YYYY-MM-DD'.
 
     Returns:
-        set: Semantic Scholar paper ids of the downloaded papers.
+        list: Tuples of paper id and the title and abstract of the paper.
     """
     files_path = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
-    paper_ids = set()
+    documents = []
     for json_file in files_path.glob("**/json/*.json"):
         df = pd.read_json(json_file)
-        if "paperId" in df.columns:
-            paper_ids.update(df["paperId"].dropna().to_list())
-    logger.info(f"{len(paper_ids):,} papers downloaded for release '{release_id}'")
-    return paper_ids
+        if "paperId" not in df.columns:
+            continue
+        df = df[df["paperId"].notna()]
+        for _, r in df.iterrows():
+            title = r.get("title") or ""
+            abstract = r.get("abstract") or ""
+            documents.append((r["paperId"], f"{title.strip()} {abstract.strip()}"))
+    logger.info(f"{len(documents):,} papers downloaded for release '{release_id}'")
+    return documents
 
 
 def get_reference_papers() -> pd.DataFrame:
@@ -92,24 +95,32 @@ def report_query(query_name: str, ranked_paper_ids: list, df_reference: pd.DataF
 def main():
     release_id = sys.argv[1] if len(sys.argv) > 1 else "2024-12-31"
 
-    paper_ids_of_release = get_paper_ids_of_release(release_id)
+    documents = get_documents_of_release(release_id)
+    if not documents:
+        logger.info(f"no papers found for release '{release_id}'")
+        return
+    paper_ids_of_release = {paper_id for paper_id, _ in documents}
+
     df_reference = get_reference_papers()
 
     # only the reference papers that the crawler downloaded can be found by a query
     df_reference = df_reference[df_reference["paperId"].isin(paper_ids_of_release)]
     logger.info(f"{df_reference.shape[0]:,} reference papers are in the downloaded papers")
+    logger.info(f"screening decisions: {df_reference['included'].value_counts().to_dict()}")
     if df_reference.empty:
         logger.info("no reference paper was downloaded, nothing to compare")
         return
 
-    collection = load_documents_to_database(release_id=release_id)
-    if collection is None:
-        logger.info(f"no papers found for release '{release_id}'")
-        return
+    collection = build_collection(documents, name=f"release_{release_id}")
 
+    results = {}
     for query in ALL_SEARCH_QUERIES:
         paper_ids = get_papers_from_search_with_sifts(query=query, collection=collection)
+        results[query.name] = paper_ids
         report_query(query_name=query.name, ranked_paper_ids=paper_ids, df_reference=df_reference)
+
+    relevant_ids = set(df_reference[df_reference["included"] == 1]["paperId"])
+    report_overlap(results=results, relevant_ids=relevant_ids)
 
 
 if __name__ == "__main__":

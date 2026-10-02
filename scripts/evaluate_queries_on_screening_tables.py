@@ -5,6 +5,9 @@ The papers of the screening tables are resolved to Semantic Scholar ids by
 Graph API, loads them into a `sifts` database and runs the search queries on
 them. It reports per query how many of the screened papers are found.
 
+Pass `--only-screened` to index only the papers that were screened, so that
+every number refers to papers with a decision.
+
 Unlike `compare_search_with_screening.py` this does not depend on the papers
 that the crawler downloaded, so it is not limited by the publication venues or
 the publication dates of a release. It measures the queries, not the pipeline.
@@ -12,16 +15,14 @@ See https://github.com/DFKI-NLP/kibad-crawler/issues/42.
 """
 
 import os
+import sys
 import time
 
+from evaluation_utils import build_collection, report_overlap
 from loguru import logger
 import pandas as pd
-import sifts  # type: ignore
-from sifts.core import CollectionBase  # type: ignore
-from tqdm import tqdm
 
 from kibad_crawler.basic_filter import get_papers_from_search_with_sifts
-from kibad_crawler.config import INTERIM_DATA_DIR
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 from kibad_crawler.semantic_scholar import academic_graph
 from kibad_crawler.utils import chunker
@@ -29,7 +30,6 @@ from kibad_crawler.utils import chunker
 BASE_DIR = "/netscratch/asafari/kibad-crawler/data/external/40_evaluation"
 DOIS_FILE = os.path.join(BASE_DIR, "wald_dois_s2.csv")
 METADATA_FILE = os.path.join(BASE_DIR, "screening_papers_metadata.json")
-DATABASE_DIR = INTERIM_DATA_DIR / "semantic_scholar" / "screening_tables" / "database"
 FIELDS = "paperId,title,abstract"
 TOP_N = [100, 500, 1000, 2000]
 DELAY_BETWEEN_BATCHES = 3
@@ -77,29 +77,22 @@ def download_metadata(paper_ids: list) -> pd.DataFrame:
     return df
 
 
-def load_documents_to_database(df_papers: pd.DataFrame) -> CollectionBase:
-    """Load title and abstract of the papers into an sqlite database.
+def get_documents(df_papers: pd.DataFrame) -> list:
+    """Return the text to index per paper.
 
     Args:
         df_papers (pd.DataFrame): Metadata of the papers with `paperId`,
             `title` and `abstract`.
 
     Returns:
-        CollectionBase: Database with the papers loaded.
+        list: Tuples of paper id and the title and abstract of the paper.
     """
-    DATABASE_DIR.mkdir(parents=True, exist_ok=True)
-    database_path = DATABASE_DIR / "papers.db"
-    if database_path.exists():
-        database_path.unlink()
-
-    collection = sifts.Collection(db_url=f"sqlite:///{database_path}", name="papers")
-    for _, r in tqdm(df_papers.iterrows(), total=df_papers.shape[0], desc="Loading papers"):
+    documents = []
+    for _, r in df_papers.iterrows():
         title = r["title"] or ""
         abstract = r["abstract"] or ""
-        collection.add(contents=[f"{title.strip()} {abstract.strip()}"], ids=[r["paperId"]])
-
-    logger.info(f"{collection.count():,} papers loaded to '{database_path}'")
-    return collection
+        documents.append((r["paperId"], f"{title.strip()} {abstract.strip()}"))
+    return documents
 
 
 def report_query(query_name: str, ranked_paper_ids: list, df_reference: pd.DataFrame):
@@ -130,17 +123,28 @@ def report_query(query_name: str, ranked_paper_ids: list, df_reference: pd.DataF
 
 
 def main():
+    only_screened = "--only-screened" in sys.argv
+
     df_reference = get_reference_papers()
     df_papers = download_metadata(sorted(df_reference["paperId"]))
 
     # the API does not return every paper, only the papers in the database can be found
     df_reference = df_reference[df_reference["paperId"].isin(set(df_papers["paperId"]))]
-    logger.info(f"{df_reference.shape[0]:,} papers are in the database")
+    if only_screened:
+        df_reference = df_reference[df_reference["included"].isin([0, 1])]
+        df_papers = df_papers[df_papers["paperId"].isin(set(df_reference["paperId"]))]
+    logger.info(f"{df_reference.shape[0]:,} papers are indexed")
 
-    collection = load_documents_to_database(df_papers)
+    collection = build_collection(get_documents(df_papers), name="screening_tables")
+
+    results = {}
     for query in ALL_SEARCH_QUERIES:
         paper_ids = get_papers_from_search_with_sifts(query=query, collection=collection)
+        results[query.name] = paper_ids
         report_query(query_name=query.name, ranked_paper_ids=paper_ids, df_reference=df_reference)
+
+    relevant_ids = set(df_reference[df_reference["included"] == 1]["paperId"])
+    report_overlap(results=results, relevant_ids=relevant_ids)
 
 
 if __name__ == "__main__":
