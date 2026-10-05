@@ -3,7 +3,6 @@ from datetime import datetime
 import gzip
 from io import StringIO
 import json
-import math
 import os
 from pathlib import Path
 
@@ -183,15 +182,17 @@ def get_abstracts(file_path: Path, overwrite: bool = False):
     json_path = file_path.parent / file_path.name[:-7] / "json"
     json_path.mkdir(parents=True, exist_ok=True)
 
+    groups = list(chunker(paper_ids, MAX_NUM_BATCH_PAPERS))
+    stored_batches = [
+        i for i in range(len(groups)) if (json_path / f"papers-metadata-{i}.json").exists()
+    ]
+    if stored_batches and not overwrite:
+        logger.info(f"Skipping {len(stored_batches):,} batches already stored in {json_path}")
+
     logger.info(f"Downloading abstracts to {json_path} ...")
-    for i, group in tqdm(
-        enumerate(chunker(paper_ids, MAX_NUM_BATCH_PAPERS)),
-        total=math.ceil(len(paper_ids) / MAX_NUM_BATCH_PAPERS),
-        desc="Downloading abstracts",
-    ):
+    for i, group in tqdm(enumerate(groups), total=len(groups), desc="Downloading abstracts"):
         json_file = json_path / f"papers-metadata-{i}.json"
-        if json_file.exists() and not overwrite:
-            logger.debug(f"Skipping existing {json_file}")
+        if i in stored_batches and not overwrite:
             continue
 
         response_batch = academic_graph.batch(group)
