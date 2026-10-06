@@ -9,6 +9,7 @@ papers were screened (`included`) and how the recall develops over the ranking
 of `sifts`. See https://github.com/DFKI-NLP/kibad-crawler/issues/42.
 """
 
+import json
 import os
 import sys
 
@@ -37,16 +38,20 @@ def get_documents_of_release(release_id: str) -> list:
     """
     files_path = RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
     documents = []
+    missing = 0
     for json_file in files_path.glob("**/json/*.json"):
-        df = pd.read_json(json_file)
-        if "paperId" not in df.columns:
-            continue
-        df = df[df["paperId"].notna()]
-        for _, r in df.iterrows():
-            title = r.get("title") or ""
-            abstract = r.get("abstract") or ""
-            documents.append((r["paperId"], f"{title.strip()} {abstract.strip()}"))
+        with open(json_file, encoding="utf-8") as f:
+            papers = json.load(f)
+        for paper in papers:
+            # the API returns null for the papers it does not know
+            if paper is None or not paper.get("paperId"):
+                missing += 1
+                continue
+            title = paper.get("title") or ""
+            abstract = paper.get("abstract") or ""
+            documents.append((paper["paperId"], f"{title.strip()} {abstract.strip()}"))
     logger.info(f"{len(documents):,} papers downloaded for release '{release_id}'")
+    logger.info(f"{missing:,} entries without metadata from the API")
     return documents
 
 
