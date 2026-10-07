@@ -1,9 +1,11 @@
 """Helpers for the evaluation of the keyword searches.
 
-Loading papers into a `sifts` database writes one row at a time, which is slow
-on the shared filesystem of the cluster: 5,873 papers took 19 minutes on
-`/netscratch`, while #27 reports about 80 papers per second locally. The
-database is therefore built on the local disk of the compute node.
+Loading papers into a `sifts` database is slow when `add` is called once per
+paper, and it gets slower as the database grows: locally 122 documents per
+second at 5,000 documents and 64 at 20,000, and 4.9 per second at 200,000 on
+the cluster. Adding 500 documents per call gives 10,000 to 22,000 per second.
+The database is also built on the local disk of the compute node, which is
+faster than `/netscratch` for many small writes.
 
 See https://github.com/DFKI-NLP/kibad-crawler/issues/42.
 """
@@ -33,12 +35,13 @@ def get_database_path(name: str) -> Path:
     return database_dir / "papers.db"
 
 
-def build_collection(documents: list, name: str) -> CollectionBase:
-    """Load documents into a new `sifts` database.
+def build_collection(documents: list, name: str, batch_size: int = 500) -> CollectionBase:
+    """Load documents into a new `sifts` database, `batch_size` per call.
 
     Args:
         documents (list): Tuples of paper id and the text to index.
         name (str): Name of the database, see `get_database_path`.
+        batch_size (int, optional): Documents per `add` call. Defaults to 500.
 
     Returns:
         CollectionBase: Database with the documents loaded.
@@ -48,9 +51,27 @@ def build_collection(documents: list, name: str) -> CollectionBase:
         database_path.unlink()
 
     collection = sifts.Collection(db_url=f"sqlite:///{database_path}", name="papers")
-    for paper_id, text in tqdm(documents, desc="Loading papers"):
-        collection.add(contents=[text], ids=[paper_id])
+    loaded_ids: set = set()
+    ids: list = []
+    contents: list = []
+    duplicates = 0
 
+    for paper_id, text in tqdm(documents, desc="Loading papers"):
+        # a paper id can only be added once
+        if paper_id in loaded_ids:
+            duplicates += 1
+            continue
+        loaded_ids.add(paper_id)
+        ids.append(paper_id)
+        contents.append(text)
+        if len(ids) == batch_size:
+            collection.add(contents=contents, ids=ids)
+            ids, contents = [], []
+    if ids:
+        collection.add(contents=contents, ids=ids)
+
+    if duplicates:
+        logger.info(f"{duplicates:,} papers skipped because their id was added before")
     logger.info(f"{collection.count():,} papers loaded to '{database_path}'")
     return collection
 
