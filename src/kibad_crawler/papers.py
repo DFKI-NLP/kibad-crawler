@@ -122,7 +122,7 @@ def get_papers(
     if csv_path.exists():
         logger.debug(f"Skipping existing {csv_path}")
         if with_abstracts:
-            get_abstracts(csv_path)
+            get_abstracts(file_path=csv_path, overwrite=overwrite)
         return
 
     file_path = datasets.download_dataset_from_semantic_scholar(
@@ -157,15 +157,19 @@ def get_papers(
         logger.info(f"Removing {file_path}")
 
     if with_abstracts:
-        get_abstracts(csv_path)
+        get_abstracts(file_path=csv_path, overwrite=overwrite)
 
 
-def get_abstracts(file_path: Path):
-    """Download abstracts of papers from Semantic Scholar.
+def get_abstracts(file_path: Path, overwrite: bool = False):
+    """Download abstracts of papers from Semantic Scholar. Batches that are
+    already stored as JSON files are skipped, so a run that was interrupted
+    continues where it stopped.
 
     Args:
         file_path (Path): File path to a single CSV file with papers
             filtered from the Semantic Scholar API.
+        overwrite (bool, optional): Whether or not to download the batches
+            that are already stored again. Defaults to False.
     """
     df = pd.read_csv(file_path)
     logger.info(f"{df.shape[0]:,} abstracts to download")
@@ -178,14 +182,24 @@ def get_abstracts(file_path: Path):
     json_path = file_path.parent / file_path.name[:-7] / "json"
     json_path.mkdir(parents=True, exist_ok=True)
 
+    groups = list(chunker(paper_ids, MAX_NUM_BATCH_PAPERS))
+    stored_batches = [
+        i for i in range(len(groups)) if (json_path / f"papers-metadata-{i}.json").exists()
+    ]
+    if stored_batches and not overwrite:
+        logger.info(f"Skipping {len(stored_batches):,} batches already stored in {json_path}")
+
     logger.info(f"Downloading abstracts to {json_path} ...")
-    for i, group in tqdm(
-        enumerate(chunker(paper_ids, MAX_NUM_BATCH_PAPERS)),
-        total=int(len(paper_ids) / MAX_NUM_BATCH_PAPERS),
-        desc="Downloading abstracts",
-    ):
+    for i, group in tqdm(enumerate(groups), total=len(groups), desc="Downloading abstracts"):
+        json_file = json_path / f"papers-metadata-{i}.json"
+        if i in stored_batches and not overwrite:
+            continue
+
         response_batch = academic_graph.batch(group)
 
-        json_file = json_path / f"papers-metadata-{i}.json"
-        with open(json_file, "w", encoding="utf-8") as f:
+        # write to a temporary file first, so that an interrupted run does not
+        # leave an incomplete file that would be skipped by the next run
+        tmp_file = json_file.with_name(f"{json_file.name}.tmp")
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(response_batch, f)
+        tmp_file.replace(json_file)
