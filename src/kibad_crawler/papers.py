@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 import gzip
-from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -128,17 +127,23 @@ def get_papers(
     file_path = datasets.download_dataset_from_semantic_scholar(
         url=url, output_path=output_path, overwrite=overwrite
     )
-    file_content = ""
-    with gzip.open(file_path, "r") as f:
-        for line in tqdm(f.readlines(), leave=True):
-            if any(x in line.decode() for x in search_params.publication_venue_ids):
-                file_content += line.decode()
+    # a set keeps the filter independent of the number of venues, and reading the
+    # file line by line keeps the whole archive out of memory
+    publication_venue_ids = set(search_params.publication_venue_ids)
+    papers = []
+    with gzip.open(file_path, "rt", encoding="utf-8") as f:
+        for line in tqdm(f, leave=True):
+            if not line.strip():
+                continue
+            paper = json.loads(line)
+            if paper.get("publicationvenueid") in publication_venue_ids:
+                papers.append(paper)
 
     # a file can have no papers from the selected venues, e.g. a small update file of a diff
-    if file_content == "":
-        df_papers = pd.DataFrame(columns=["url", "publicationdate", "citationcount"])
+    if papers:
+        df_papers = pd.DataFrame(papers)
     else:
-        df_papers = pd.read_json(StringIO(file_content), lines=True)
+        df_papers = pd.DataFrame(columns=["url", "publicationdate", "citationcount"])
 
     min_publication_date_filter = datetime.strptime(search_params.min_publication_date, "%Y-%m-%d")
     max_publication_date_filter = datetime.strptime(search_params.max_publication_date, "%Y-%m-%d")
