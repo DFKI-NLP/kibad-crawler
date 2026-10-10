@@ -143,6 +143,10 @@ def download_dataset_from_semantic_scholar(
 ) -> Path:
     """Download file from a `url` and stores it to a `output_path`.
 
+    The file is written to a temporary file that is renamed after the download,
+    so that an interrupted download does not leave a file behind that the next
+    call would reuse as if it was complete.
+
     Args:
         url (str): URL to the file.
         output_path (Path): Path where to store the downloaded file.
@@ -158,6 +162,7 @@ def download_dataset_from_semantic_scholar(
     output_path.mkdir(parents=True, exist_ok=True)
     file_name = url.split("?")[0].split("/")[-1]
     out_path = output_path / file_name
+    tmp_path = out_path.with_name(f"{file_name}.tmp")
 
     if not overwrite and out_path.exists():
         logger.info(f"{out_path} already downloaded.")
@@ -168,10 +173,15 @@ def download_dataset_from_semantic_scholar(
         logger.info(
             f"Downloading {out_path} {get_human_readable_size(int(response.headers['Content-Length']))}"
         )
-        with open(out_path, mode="wb") as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                f.write(chunk)
+        try:
+            with open(tmp_path, mode="wb") as f:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    f.write(chunk)
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            raise
 
+    tmp_path.replace(out_path)
     return out_path
 
 
