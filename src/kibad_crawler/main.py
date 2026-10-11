@@ -1,4 +1,5 @@
 from datetime import datetime
+from functools import partial
 from typing import Annotated, Literal
 
 from loguru import logger
@@ -18,6 +19,7 @@ from kibad_crawler.papers import (
 )
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
 from kibad_crawler.semantic_scholar import datasets
+from kibad_crawler.utils import get_file_name
 
 app = typer.Typer()
 
@@ -163,13 +165,22 @@ def download_paper_metadata(
     )
     logger.info(f"{search_params}")
 
-    # Get the links to the metadata files of the papers
-    links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
-    urls = links_papers["files"] if n_files == 0 else links_papers["files"][:n_files]
+    # Get the names of the metadata files of the papers
+    file_names = sorted(
+        datasets.download_links_by_file_name(release_id=release_id, dataset_name="papers")
+    )
+    if n_files != 0:
+        file_names = file_names[:n_files]
+
+    def get_url(file_name: str) -> str:
+        """Returns the current download link of a file of the release."""
+        links = datasets.download_links_by_file_name(release_id=release_id, dataset_name="papers")
+        return links[file_name]
 
     # Downloads files with the actual metadata of the papers
     get_papers_from_files(
-        urls=urls,
+        file_names=file_names,
+        get_url=get_url,
         output_path=RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers",
         search_params=search_params,
         overwrite=overwrite,
@@ -277,6 +288,16 @@ def download_paper_metadata_diff(
     logger.info(f"{search_params}")
 
     # Downloads the update files of each diff into its own folder
+    def get_url_of_update_file(from_release: str, to_release: str, file_name: str) -> str:
+        """Returns the current download link of an update file of a diff."""
+        diffs = datasets.download_links_incremental_diffs(
+            dataset_name="papers", end_release_id=end_release_id, start_release_id=start_release
+        )["diffs"]
+        for diff in diffs:
+            if (diff["from_release"], diff["to_release"]) == (from_release, to_release):
+                return {get_file_name(url): url for url in diff["update_files"]}[file_name]
+        raise KeyError(f"no diff from '{from_release}' to '{to_release}'")
+
     for diff in diff_list["diffs"]:
         from_release, to_release = diff["from_release"], diff["to_release"]
         logger.info(
@@ -284,7 +305,8 @@ def download_paper_metadata_diff(
             f"{len(diff['delete_files'])} delete files (not applied)"
         )
         get_papers_from_files(
-            urls=diff["update_files"],
+            file_names=sorted(get_file_name(url) for url in diff["update_files"]),
+            get_url=partial(get_url_of_update_file, from_release, to_release),
             output_path=RAW_DATA_DIR
             / "semantic_scholar"
             / "release"

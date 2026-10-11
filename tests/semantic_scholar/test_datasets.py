@@ -91,6 +91,22 @@ def test_download_links_incremental_diffs(api_calls):
     ]
 
 
+def test_download_links_by_file_name(api_calls):
+    links = {
+        "name": "papers",
+        "files": [FILE_URL, FILE_URL.replace("file-0", "file-1")],
+    }
+    api_calls.content = json.dumps(links).encode()
+
+    links_by_file_name = datasets.download_links_by_file_name("2026-09-01", "papers")
+
+    # the query string that signs the link is not part of the file name
+    assert links_by_file_name == {
+        "file-0.gz": FILE_URL,
+        "file-1.gz": FILE_URL.replace("file-0", "file-1"),
+    }
+
+
 @pytest.fixture
 def get_requests(monkeypatch, make_response):
     """Replace `requests.get` in the datasets module and return the list of

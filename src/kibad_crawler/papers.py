@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import gzip
@@ -11,7 +12,7 @@ from tqdm import tqdm
 
 from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, RAW_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
-from kibad_crawler.utils import chunker, get_issn_codes
+from kibad_crawler.utils import chunker, get_file_name, get_issn_codes
 
 
 @dataclass
@@ -57,18 +58,26 @@ def get_publication_venue_ids(release_id: str, file_with_issn: Path | str) -> li
 
 
 def get_papers_from_files(
-    urls: list[str],
+    file_names: list[str],
+    get_url: Callable[[str], str],
     output_path: Path,
     search_params: PaperSearch,
     overwrite: bool = False,
     persistent: bool = False,
 ):
-    """Download and filter a list of paper dataset files with `get_papers`.
-    The list can be the files of a full release or the update files of a diff
-    between two releases, since both have the same structure.
+    """Download and filter paper dataset files with `get_papers`. The files can
+    be the files of a full release or the update files of a diff between two
+    releases, since both have the same structure.
+
+    The download links of Semantic Scholar are pre-signed and stop working
+    after a few hours, which is longer than one file takes but shorter than a
+    run over all files of a release. The link of a file is therefore requested
+    with `get_url` right before the file is downloaded.
 
     Args:
-        urls (list[str]): URLs of the paper dataset files to download.
+        file_names (list[str]): Names of the paper dataset files to download.
+        get_url (Callable[[str], str]): Returns the current download link of a
+            file name.
         output_path (Path): Storage path to save the downloaded files.
         search_params (PaperSearch): Search and filter criteria.
         overwrite (bool, optional): Whether or not to overwrite a file that is
@@ -76,10 +85,10 @@ def get_papers_from_files(
         persistent (bool, optional): Whether or not to keep the original files
             after filtering papers. Defaults to False.
     """
-    logger.info(f"{len(urls)} paper dataset files to process in '{output_path}'")
-    for url in urls:
+    logger.info(f"{len(file_names)} paper dataset files to process in '{output_path}'")
+    for file_name in file_names:
         get_papers(
-            url=url,
+            url=get_url(file_name),
             output_path=output_path,
             search_params=search_params,
             overwrite=overwrite,
@@ -116,8 +125,7 @@ def get_papers(
             downloading process. Default to True.
     """
 
-    file_name = url.split("?")[0].split("/")[-1]
-    csv_path = output_path / f"{file_name}.csv"
+    csv_path = output_path / f"{get_file_name(url)}.csv"
     if csv_path.exists():
         logger.debug(f"Skipping existing {csv_path}")
         if with_abstracts:

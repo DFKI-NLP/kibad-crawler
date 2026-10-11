@@ -13,7 +13,7 @@ import requests
 from retry import retry
 
 from kibad_crawler.config import S2_API_KEY
-from kibad_crawler.utils import api_call_get, get_human_readable_size
+from kibad_crawler.utils import api_call_get, get_file_name, get_human_readable_size
 
 URL_BASE: str = "https://api.semanticscholar.org/datasets/v1"
 
@@ -93,6 +93,23 @@ def download_links(release_id: str, dataset_name: DatasetName) -> dict:
     return response.json()
 
 
+def download_links_by_file_name(release_id: str, dataset_name: DatasetName) -> dict:
+    """Returns the current download link of every file of a dataset, by file
+    name. The links are pre-signed and stop working after a few hours, while
+    the files themselves keep their name, so a file is addressed by its name
+    and its link is requested when it is needed.
+
+    Args:
+        release_id (str): ID of the release.
+        dataset_name (DatasetName): Name of the dataset.
+
+    Returns:
+        dict: Download link per file name.
+    """
+    links = download_links(release_id=release_id, dataset_name=dataset_name)
+    return {get_file_name(url): url for url in links["files"]}
+
+
 def download_links_incremental_diffs(
     dataset_name: DatasetName, end_release_id: str, start_release_id: str
 ):
@@ -160,7 +177,7 @@ def download_dataset_from_semantic_scholar(
     """
 
     output_path.mkdir(parents=True, exist_ok=True)
-    file_name = url.split("?")[0].split("/")[-1]
+    file_name = get_file_name(url)
     out_path = output_path / file_name
     tmp_path = out_path.with_name(f"{file_name}.tmp")
 
