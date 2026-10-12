@@ -14,7 +14,7 @@ import requests
 from retry import retry
 from tqdm import tqdm
 
-from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, RAW_DATA_DIR, PROCESSED_DATA_DIR
+from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, PROCESSED_DATA_DIR, RAW_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
 from kibad_crawler.utils import chunker, get_human_readable_size, get_issn_codes
 
