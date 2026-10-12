@@ -93,10 +93,36 @@ def downloads(monkeypatch):
 
 @pytest.fixture
 def abstracts(monkeypatch):
-    """Replace `get_abstracts` and return the list of CSV files it was called with."""
-    csv_paths = []
-    monkeypatch.setattr(papers, "get_abstracts", lambda file_path: csv_paths.append(file_path))
-    return csv_paths
+    """Replace `get_abstracts` and return the list of calls it got."""
+    calls = []
+    monkeypatch.setattr(papers, "get_abstracts", lambda **kwargs: calls.append(kwargs))
+    return calls
+
+
+@pytest.fixture
+def batch_requests(monkeypatch) -> list[list[str]]:
+    """Replace the batch call to the Academic Graph API and return the list of
+    requested paper ids."""
+    requests: list[list[str]] = []
+
+    def fake_batch(ids):
+        requests.append(ids)
+        return [{"paperId": paper_id, "abstract": f"Abstract of {paper_id}"} for paper_id in ids]
+
+    monkeypatch.setattr(academic_graph, "batch", fake_batch)
+    return requests
+
+
+def make_papers_csv(csv_path: Path, n_papers: int = 5):
+    """Save a CSV file with papers as it is written by `get_papers`."""
+    pd.DataFrame(
+        {
+            "corpusid": list(range(1, n_papers + 1)),
+            "url": [
+                f"https://www.semanticscholar.org/paper/paper-{i}" for i in range(1, n_papers + 1)
+            ],
+        }
+    ).to_csv(csv_path, index=False)
 
 
 def make_search_params(min_citation_count: int = 0) -> papers.PaperSearch:
@@ -106,6 +132,81 @@ def make_search_params(min_citation_count: int = 0) -> papers.PaperSearch:
         max_publication_date="2026-09-11",
         min_citation_count=min_citation_count,
     )
+
+
+def test_get_publication_venue_ids(tmp_path: Path, monkeypatch):
+    venues_url = (
+        "https://ai2-s2ag.s3.amazonaws.com/staging/2026-09-01/publication-venues/venues-0.gz"
+    )
+    download_calls: list[dict] = []
+
+    def fake_download_dataset_from_semantic_scholar(url, output_path):
+        download_calls.append({"url": url, "output_path": output_path})
+        file_path = tmp_path / "venues-0.gz"
+        venues = [
+            {"id": "venue-1", "name": "Forests", "issn": "1999-4907"},
+            {"id": "venue-2", "name": "PLOS ONE", "issn": "1932-6203"},
+            {"id": "venue-3", "name": "Other Journal", "issn": "0000-0000"},
+            {"id": "venue-4", "name": "Journal without ISSN", "issn": None},
+        ]
+        with gzip.open(file_path, "wt") as f:
+            f.write("\n".join(json.dumps(venue) for venue in venues))
+        return file_path
+
+    monkeypatch.setattr(
+        papers.datasets,
+        "download_links",
+        lambda release_id, dataset_name: {"files": [venues_url]},
+    )
+    monkeypatch.setattr(
+        papers.datasets,
+        "download_dataset_from_semantic_scholar",
+        fake_download_dataset_from_semantic_scholar,
+    )
+    csv_path = tmp_path / "journals.csv"
+    csv_path.write_text(
+        "Journal,Online ISSN,Print ISSN\nForests,1999-4907,\nPLOS ONE,,1932-6203\n"
+    )
+
+    publication_venue_ids = papers.get_publication_venue_ids(
+        release_id="2026-09-01", file_with_issn=csv_path
+    )
+
+    assert sorted(publication_venue_ids) == ["venue-1", "venue-2"]
+    # the publication venues are stored with the release they belong to
+    assert download_calls == [
+        {
+            "url": venues_url,
+            "output_path": papers.RAW_DATA_DIR
+            / "semantic_scholar"
+            / "release"
+            / "2026-09-01"
+            / "publication_venues",
+        }
+    ]
+
+
+def test_get_papers_from_files(tmp_path: Path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(papers, "get_papers", lambda **kwargs: calls.append(kwargs))
+    search_params = make_search_params()
+    urls = [FILE_URL, FILE_URL.replace("file-0", "file-1")]
+
+    papers.get_papers_from_files(
+        urls=urls, output_path=tmp_path, search_params=search_params, persistent=True
+    )
+
+    # each file is processed with the same output path and search parameters
+    assert calls == [
+        {
+            "url": url,
+            "output_path": tmp_path,
+            "search_params": search_params,
+            "overwrite": False,
+            "persistent": True,
+        }
+        for url in urls
+    ]
 
 
 @pytest.mark.parametrize(
@@ -133,7 +234,7 @@ def test_get_papers(
     assert downloads == [{"url": FILE_URL, "output_path": tmp_path, "overwrite": True}]
     # the dataset file is removed after filtering and the abstracts are downloaded
     assert not (tmp_path / "file-0.gz").exists()
-    assert abstracts == [csv_path]
+    assert abstracts == [{"file_path": csv_path, "overwrite": True}]
 
 
 def test_get_papers_persistent(tmp_path: Path, downloads, abstracts):
@@ -164,38 +265,74 @@ def test_get_papers_existing_csv(tmp_path: Path, downloads, abstracts, with_abst
 
     # the file is not downloaded again, only the abstracts are downloaded
     assert downloads == []
-    assert abstracts == ([csv_path] if with_abstracts else [])
+    assert abstracts == ([{"file_path": csv_path, "overwrite": False}] if with_abstracts else [])
 
 
-def test_get_abstracts(tmp_path: Path, monkeypatch):
+def test_get_papers_no_matching_papers(tmp_path: Path, downloads, monkeypatch):
     batches: list[list[str]] = []
+    monkeypatch.setattr(academic_graph, "batch", lambda ids: batches.append(ids))
 
-    def fake_batch(ids):
-        batches.append(ids)
-        return [{"paperId": paper_id, "abstract": f"Abstract of {paper_id}"} for paper_id in ids]
+    # none of the papers in the file is from this venue
+    papers.get_papers(
+        url=FILE_URL,
+        output_path=tmp_path,
+        search_params=papers.PaperSearch(
+            publication_venue_ids=["venue-9"], max_publication_date="2026-09-11"
+        ),
+    )
 
-    monkeypatch.setattr(academic_graph, "batch", fake_batch)
+    # an empty CSV is saved, so the file is skipped in the next run, and no abstracts are requested
+    df_papers = pd.read_csv(tmp_path / "file-0.gz.csv")
+    assert df_papers.empty
+    assert batches == []
+    assert list((tmp_path / "file-0" / "json").glob("*.json")) == []
+
+
+def test_get_abstracts(tmp_path: Path, monkeypatch, batch_requests):
     monkeypatch.setattr(papers, "MAX_NUM_BATCH_PAPERS", 2)
-
     csv_path = tmp_path / "file-0.gz.csv"
-    pd.DataFrame(
-        {
-            "corpusid": [1, 2, 3, 4, 5],
-            "url": [f"https://www.semanticscholar.org/paper/paper-{i}" for i in range(1, 6)],
-        }
-    ).to_csv(csv_path, index=False)
+    make_papers_csv(csv_path)
 
-    papers.get_abstracts(csv_path)
+    papers.get_abstracts(file_path=csv_path)
 
     # the paper ids are taken from the url and requested in batches
-    assert batches == [["paper-1", "paper-2"], ["paper-3", "paper-4"], ["paper-5"]]
+    assert batch_requests == [["paper-1", "paper-2"], ["paper-3", "paper-4"], ["paper-5"]]
 
     # each batch is saved to a JSON file in a directory named after the CSV file
     json_path = tmp_path / "file-0" / "json"
-    assert sorted(x.name for x in json_path.glob("*.json")) == [
+    assert sorted(x.name for x in json_path.iterdir()) == [
         "papers-metadata-0.json",
         "papers-metadata-1.json",
         "papers-metadata-2.json",
     ]
     with open(json_path / "papers-metadata-2.json", encoding="utf-8") as f:
         assert json.load(f) == [{"paperId": "paper-5", "abstract": "Abstract of paper-5"}]
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_get_abstracts_with_existing_batches(
+    tmp_path: Path, monkeypatch, batch_requests, overwrite: bool
+):
+    monkeypatch.setattr(papers, "MAX_NUM_BATCH_PAPERS", 2)
+    csv_path = tmp_path / "file-0.gz.csv"
+    make_papers_csv(csv_path)
+    json_path = tmp_path / "file-0" / "json"
+    json_path.mkdir(parents=True)
+    (json_path / "papers-metadata-0.json").write_text('[{"paperId": "from a previous run"}]')
+
+    papers.get_abstracts(file_path=csv_path, overwrite=overwrite)
+
+    # the batches that are already stored are only downloaded again with overwrite
+    if overwrite:
+        assert batch_requests == [["paper-1", "paper-2"], ["paper-3", "paper-4"], ["paper-5"]]
+    else:
+        assert batch_requests == [["paper-3", "paper-4"], ["paper-5"]]
+
+    with open(json_path / "papers-metadata-0.json", encoding="utf-8") as f:
+        papers_of_first_batch = json.load(f)
+    assert papers_of_first_batch[0]["paperId"] == (
+        "paper-1" if overwrite else "from a previous run"
+    )
+
+    # the JSON files are written through a temporary file that is renamed
+    assert list(json_path.glob("*.tmp")) == []

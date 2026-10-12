@@ -4,6 +4,8 @@ import pandas as pd
 import requests
 from retry import retry
 
+from kibad_crawler.config import DELAY_S2_API
+
 
 def get_human_readable_size(size: float, index: int = 0) -> str:
     """Returns the size given in bytes in a human readable unit.
@@ -25,19 +27,50 @@ def get_human_readable_size(size: float, index: int = 0) -> str:
     return hr_size
 
 
-@retry(tries=3, delay=3)
+class RetryableHTTPError(requests.HTTPError):
+    """HTTP error that is worth retrying after waiting: 429 Too Many Requests
+    or a server error (5xx) of the Semantic Scholar API."""
+
+
+def raise_for_status(response: requests.Response):
+    """Raise an HTTP error for a failed response. Errors due to the rate
+    limit (429) or the server (5xx) are raised as `RetryableHTTPError`.
+
+    Args:
+        response (requests.Response): Response of the API call.
+    """
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as e:
+        if response.status_code == 429 or response.status_code >= 500:
+            raise RetryableHTTPError(*e.args, response=response) from e
+        raise
+
+
+# errors to retry and the waiting time between attempts: 3, 6, 12, 24 and 48 seconds
+RETRY_EXCEPTIONS = (RetryableHTTPError, requests.ConnectionError, requests.Timeout)
+RETRY_TRIES = 6
+
+
+@retry(exceptions=RETRY_EXCEPTIONS, tries=RETRY_TRIES, delay=DELAY_S2_API, backoff=2)
 def api_call_post(
     url: str, params: dict, payload: dict, timeout: int = 60, api_key: str | None = None
 ) -> requests.Response:
-    """_summary_
+    """POST request to the Semantic Scholar API. Requests that fail because of
+    the rate limit (429), the server (5xx) or the connection are retried with
+    an increasing waiting time. Other errors, e.g. 401 for a missing API key,
+    are raised directly.
 
     Args:
-        url (str): _description_
-        timeout (int, optional): _description_. Defaults to 60.
-        api_key (str | None, optional): _description_. Defaults to None.
+        url (str): URL of the API endpoint.
+        params (dict): Query parameters.
+        payload (dict): JSON body of the request.
+        timeout (int, optional): Timeout of the request in seconds. Defaults to 60.
+        api_key (str | None, optional): Semantic Scholar API key, sent in the
+            `x-api-key` header if given. Defaults to None.
 
     Returns:
-        requests.Response: _description_
+        requests.Response: Response of the API.
     """
     if isinstance(api_key, str):
         headers = {"x-api-key": api_key}
@@ -46,28 +79,32 @@ def api_call_post(
         )
     else:
         response = requests.post(url=url, timeout=timeout, params=params, json=payload)
-    response.raise_for_status()
+    raise_for_status(response)
     return response
 
 
-@retry(tries=3, delay=3)
+@retry(exceptions=RETRY_EXCEPTIONS, tries=RETRY_TRIES, delay=DELAY_S2_API, backoff=2)
 def api_call_get(url: str, timeout: int = 60, api_key: str | None = None) -> requests.Response:
-    """_summary_
+    """GET request to the Semantic Scholar API. Requests that fail because of
+    the rate limit (429), the server (5xx) or the connection are retried with
+    an increasing waiting time. Other errors, e.g. 401 for a missing API key,
+    are raised directly.
 
     Args:
-        url (str): _description_
-        timeout (int, optional): _description_. Defaults to 60.
-        api_key (str | None, optional): _description_. Defaults to None.
+        url (str): URL of the API endpoint.
+        timeout (int, optional): Timeout of the request in seconds. Defaults to 60.
+        api_key (str | None, optional): Semantic Scholar API key, sent in the
+            `x-api-key` header if given. Defaults to None.
 
     Returns:
-        requests.Response: _description_
+        requests.Response: Response of the API.
     """
     if isinstance(api_key, str):
         headers = {"x-api-key": api_key}
         response = requests.get(url=url, headers=headers, timeout=timeout)
     else:
         response = requests.get(url=url, timeout=timeout)
-    response.raise_for_status()
+    raise_for_status(response)
     return response
 
 
