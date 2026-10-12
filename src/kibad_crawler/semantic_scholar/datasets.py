@@ -162,7 +162,8 @@ def download_dataset_from_semantic_scholar(
 
     The file is written to a temporary file that is renamed after the download,
     so that an interrupted download does not leave a file behind that the next
-    call would reuse as if it was complete.
+    call would reuse as if it was complete. The temporary file is renamed only
+    when it has the size that the server announced.
 
     Args:
         url (str): URL to the file.
@@ -174,6 +175,9 @@ def download_dataset_from_semantic_scholar(
 
     Returns:
         Path: Path to the stored file.
+
+    Raises:
+        OSError: If fewer bytes were downloaded than the server announced.
     """
 
     output_path.mkdir(parents=True, exist_ok=True)
@@ -187,9 +191,8 @@ def download_dataset_from_semantic_scholar(
 
     with requests.get(url, stream=True, allow_redirects=True, timeout=10) as response:
         response.raise_for_status()
-        logger.info(
-            f"Downloading {out_path} {get_human_readable_size(int(response.headers['Content-Length']))}"
-        )
+        file_size = int(response.headers["Content-Length"])
+        logger.info(f"Downloading {out_path} {get_human_readable_size(file_size)}")
         try:
             with open(tmp_path, mode="wb") as f:
                 for chunk in response.iter_content(chunk_size=chunk_size):
@@ -197,6 +200,15 @@ def download_dataset_from_semantic_scholar(
         except BaseException:
             tmp_path.unlink(missing_ok=True)
             raise
+
+    # a download can end without an error and still be short, so the file is
+    # kept only when it has the size that the server announced
+    downloaded_size = tmp_path.stat().st_size
+    if downloaded_size != file_size:
+        tmp_path.unlink()
+        raise OSError(
+            f"'{out_path}' is incomplete, {downloaded_size} of {file_size} bytes downloaded"
+        )
 
     tmp_path.replace(out_path)
     return out_path

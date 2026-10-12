@@ -204,6 +204,34 @@ def test_download_dataset_from_semantic_scholar_interrupted(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_download_dataset_from_semantic_scholar_short(tmp_path: Path, monkeypatch, no_retry_delay):
+    class ShortResponse:
+        """Response that sends fewer bytes than it announces and ends without
+        an error, e.g. a connection that is closed by the server."""
+
+        headers = {"Content-Length": "12"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size):
+            yield b"file"
+
+    monkeypatch.setattr(datasets.requests, "get", lambda url, **kwargs: ShortResponse())
+
+    with pytest.raises(OSError, match="4 of 12 bytes"):
+        datasets.download_dataset_from_semantic_scholar(url=FILE_URL, output_path=tmp_path)
+
+    # an incomplete file is not kept, so the next call downloads it again
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_read_publication_venues(tmp_path: Path):
     venues = [
         {"id": "venue-1", "name": "Forests", "issn": "1999-4907", "type": "journal"},
