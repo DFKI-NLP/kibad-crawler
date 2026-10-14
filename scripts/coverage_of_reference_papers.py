@@ -106,7 +106,8 @@ def get_crawled_papers(folder: str) -> pd.DataFrame:
 
 
 def report_coverage(df_reference: pd.DataFrame, crawled: set[str], label: str):
-    """Print how many reference papers are in the crawl, in total and per decade.
+    """Print how many reference papers are in the crawl, of the ones screened
+    as relevant and per publication decade.
 
     Args:
         df_reference (pd.DataFrame): Reference papers with a publication year.
@@ -120,6 +121,13 @@ def report_coverage(df_reference: pd.DataFrame, crawled: set[str], label: str):
 
     found = df_reference["paperId"].isin(crawled)
     print(f"{label}: {found.sum():,} of {total:,} papers in the crawl ({found.mean():.0%})")
+
+    relevant = df_reference["included"] == 1
+    if relevant.any():
+        print(
+            f"  screened as relevant: {found[relevant].sum():,} of {relevant.sum():,} "
+            f"({found[relevant].mean():.0%})"
+        )
 
     years = pd.to_numeric(df_reference["year"], errors="coerce")
     decades = (years // 10 * 10).astype("Int64")
@@ -146,11 +154,19 @@ def main():
     in_venues = df_reference[df_reference["publication_venue_id"].isin(venue_ids)]
     report_coverage(in_venues, crawled, f"reference papers of the venues of '{file_with_issn}'")
 
+    # a paper without a publication venue id cannot be reached by any ISSN
+    # list, since the crawler filters the papers by that id
     print("=" * 70)
-    without_venue_id = df_reference["publication_venue_id"].isna().sum()
-    print(f"{without_venue_id:,} reference papers have no publication venue id")
-    relevant_in_venues = in_venues["included"].sum()
-    print(f"{relevant_in_venues:,.0f} of the reference papers of those venues are relevant")
+    has_venue_id = df_reference["publication_venue_id"].notna()
+    relevant = df_reference["included"] == 1
+    print(
+        f"publication venue id: {has_venue_id.sum():,} of {df_reference.shape[0]:,} "
+        f"reference papers ({has_venue_id.mean():.0%})"
+    )
+    print(
+        f"  screened as relevant: {(has_venue_id & relevant).sum():,} of {relevant.sum():,} "
+        f"({(has_venue_id & relevant).sum() / relevant.sum():.0%})"
+    )
 
 
 if __name__ == "__main__":
