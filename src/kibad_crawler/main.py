@@ -108,6 +108,12 @@ def download_paper_metadata(
             help="Whether or not to keep original 1GB files of metadata after filtering papers."
         ),
     ] = False,
+    with_abstracts: Annotated[
+        bool,
+        typer.Option(
+            help="Whether or not to request the metadata with the abstracts from the Graph API, which takes most of the time of a run."
+        ),
+    ] = True,
 ):
     """Download metadata of papers from Semantic Scholar.
 
@@ -185,6 +191,7 @@ def download_paper_metadata(
         search_params=search_params,
         overwrite=overwrite,
         persistent=persistent,
+        with_abstracts=with_abstracts,
     )
     logger.info("finished successfully")
 
@@ -231,6 +238,12 @@ def download_paper_metadata_diff(
             help="Whether or not to keep original files of metadata after filtering papers."
         ),
     ] = False,
+    with_abstracts: Annotated[
+        bool,
+        typer.Option(
+            help="Whether or not to request the metadata with the abstracts from the Graph API, which takes most of the time of a run."
+        ),
+    ] = True,
 ):
     """Download metadata of the papers that changed between two releases.
 
@@ -317,6 +330,7 @@ def download_paper_metadata_diff(
             search_params=search_params,
             overwrite=overwrite,
             persistent=persistent,
+            with_abstracts=with_abstracts,
         )
     logger.info("finished successfully")
 

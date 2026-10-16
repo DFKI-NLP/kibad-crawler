@@ -45,6 +45,32 @@ def test_download_publication_venues():
 
 
 @pytest.mark.parametrize(
+    "abstracts_args, with_abstracts",
+    [([], True), (["--with-abstracts"], True), (["--no-with-abstracts"], False)],
+)
+def test_download_paper_metadata_abstracts(
+    crawler, monkeypatch, abstracts_args: list, with_abstracts: bool
+):
+    monkeypatch.setattr(
+        main.datasets,
+        "download_links_by_file_name",
+        lambda release_id, dataset_name: {
+            "file-0.gz": "https://ai2-s2ag.s3.amazonaws.com/file-0.gz"
+        },
+    )
+
+    result = runner.invoke(
+        main.app,
+        ["download-paper-metadata", "--release", "2026-09-01", *abstracts_args],
+    )
+
+    assert result.exit_code == 0, result.output
+    # the abstracts are requested unless the option turns them off
+    [call] = crawler["get_papers_from_files"]
+    assert call["with_abstracts"] is with_abstracts
+
+
+@pytest.mark.parametrize(
     "n_files_args, expected_files",
     [
         ([], ["file-0.gz", "file-1.gz", "file-2.gz"]),
