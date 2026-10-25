@@ -32,7 +32,9 @@ def test_query_ids_are_unique():
 
 def test_query_names_match_the_documentation():
     # rows of the table in docs/SEARCH_QUERIES.md look like `| Q5  | Soil - Trends | ...`
-    documented = dict(re.findall(r"^\| (Q\d+)\s+\| (.+?)\s+\|", SEARCH_QUERIES_DOC.read_text(), re.M))
+    documented = dict(
+        re.findall(r"^\| (Q\d+)\s+\| (.+?)\s+\|", SEARCH_QUERIES_DOC.read_text(), re.M)
+    )
 
     assert len(documented) == 26
     assert {query.id: query.name for query in ALL_SEARCH_QUERIES} == {
