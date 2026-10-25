@@ -103,13 +103,7 @@ HABITATS_WATER = """("inland water*" OR "floodplain*" OR freshwater OR "river*" 
 HABITATS_COASTS = """("North Sea" OR "Helgoland" OR "Sylt" OR "Wadden Sea" OR "Weser" OR "Elbe" OR "Ems" OR "frisian island*" OR Arkona OR "German Bight" OR baltic OR "Kiel fjord" OR "Flensborg fjord" OR "German coast")"""
 HABITATS_URBAN = """("urban*" OR "metropol*" OR city OR cities OR capital OR "municipal*" OR town OR settlement OR "built-up area*" OR "artificial* area*" OR "sealed area*" OR impervious OR suburban OR "peri-urban" OR anthropogenic OR neighbourhood OR "building*" OR "brownfield*" OR ruderal OR remnant OR "Central Business District")"""
 
-TRENDS = (
-    HABITATS_AGRICULTURAL
-    + " AND "
-    + """("endangered species" OR "extinct species")"""
-    + " AND "
-    + """("trend*" OR "chang*" OR "decreas*" OR "gain*" OR "increas*" OR "los*" OR "reduc*" OR "declin*" OR "extinct*" OR "species loss" OR "biodiversity loss" OR "grow*" OR endangered) """
-)
+TRENDS = """("trend*" OR "chang*" OR "decreas*" OR "gain*" OR "increas*" OR "los*" OR "reduc*" OR "declin*" OR "extinct*" OR "species loss" OR "biodiversity loss" OR "grow*" OR endangered) """
 
 DRIVERS = """("habitat chang*" OR "habitat loss*" OR "habitat modification*" OR "habitat-chang*" OR "habitat-loss*" OR "land use chang*" OR "landscape chang*" OR "land-use chang*" OR fragmentation OR "degrad*" OR "land* intensification" OR intensification OR "extensive land*use" OR extensification OR "driv*" OR "pressur*" OR "stressor*" OR "agricultur* expansion" OR "crop* expansion" OR "graz* expansion" OR livestock OR "animal husbandry" OR "herd*" OR "grassland abandonment" OR drainage OR "biomass extract*" OR "raw material extract*" OR "resource extract*" OR "extract*" OR "overexploit*" OR "crop rotation" OR "crop reduction" OR "peat degradation" OR "hummus degradation" OR "climate chang*" OR "climate warming" OR "extreme weather event*" OR "global warming" OR "global* chang*" OR "carbon dioxide" OR "GHG*" OR "greenhouse gas*" OR "*CO2" OR warming OR drought OR "weather extreme*" OR "heat wave*" OR "late frost" OR "heavy rain event*" OR "storm*" OR "flood event" OR flooding OR precipitation OR "contaminat*" OR "contaminant*" OR "pollut*" OR "anthropogenic greenhouse effect" OR "heavy metal*" OR "toxi*" OR "nutrient content" OR "nutrient input" OR liming OR "pesticide*" OR "fertiliz*" OR "soil acidification" or "light pollut*" OR "alien species" OR "introduced species" OR "invasi*" OR "non-native species" OR "introduced predator*" OR "introduced parasite*" OR "introduced disease*" OR "homogeniz* land*" OR "urban pressure" OR "settlement pressure" OR "road construction" OR "landscape elements" OR fallow OR irrigation OR "marginal crop*" OR "windmill*" OR "market*" OR "commodity trad*" OR "global demand" OR "energy regime" OR "techn* progress" OR "agricultural specialization" OR Bundesnaturschutzgesetz OR BNatSchG OR Landesnaturschutzgesetz OR LNatSchG OR Klimaschutzgesetz OR FFH OR Natura2000 OR "Convention on Biological Diversity" OR CBD OR "Biodiversitätsstrategie*" OR "agricultural policy" OR "land*use policy" or "nature conservation" OR policy OR "green band" OR "Flächen*stillegung*" OR "renewable energy policy" OR "social change" OR awareness OR leisure OR "loss of knowledge" OR "loss of awareness" OR media OR "distanc* consumer* product*" OR "land consolidation" OR "society engagement" OR "citizen science" OR "citizen initiative" OR NGO)"""
 
@@ -124,6 +118,7 @@ class Habitat(Enum):
     AGRI = "Agricultural and Open Land"
     INLAND_WATER = "Inland waters & Floodplains"
     COAST = "Coasts & Coastal Waters"
+    URBAN = "Urban areas"
     ALL = "All habitats"
 
 
@@ -144,6 +139,45 @@ class Query:
     query: str
     habitat: Habitat
     topic: Topic
+
+
+# For Agricultural and Open Land the Search Strings document adds these species to the
+# terms of the Trends search ("außerdem Agrar- und Offenland").
+AGRICULTURAL_TRENDS = '("endangered species" OR "extinct species" OR ' + TRENDS[1:]
+
+
+def habitat_queries(
+    first_id: int, habitat: Habitat, habitat_words: str, trends: str
+) -> list[Query]:
+    """Returns the Trends, Drivers, Measures and Ecosystem Services queries of a habitat.
+
+    The Search Strings document defines one Trends, Drivers and Measures search for the
+    habitats other than Forest and Soil, combined as Biodiversity AND Germany AND
+    habitat AND topic. It defines no Ecosystem Services search per habitat, only the
+    cross-section and one search with the terms of all habitats, so here the
+    cross-section is restricted to the terms of one habitat.
+    """
+    topic_terms = {Topic.TRENDS: trends, Topic.DRIVERS: DRIVERS, Topic.MEASURES: METRICS}
+    queries = [
+        Query(
+            f"Q{first_id + i}",
+            f"{habitat.value} - {topic.value}",
+            BIODIVERSITY + " AND " + GERMANY + " AND " + habitat_words + " AND " + terms,
+            habitat,
+            topic,
+        )
+        for i, (topic, terms) in enumerate(topic_terms.items())
+    ]
+    queries.append(
+        Query(
+            f"Q{first_id + 3}",
+            f"{habitat.value} - {Topic.ECO_SERVICES.value}",
+            ECOSYSTEM_SERVICES_CROSS_SECTION + " AND " + habitat_words,
+            habitat,
+            Topic.ECO_SERVICES,
+        )
+    )
+    return queries
 
 
 ALL_SEARCH_QUERIES = [
@@ -167,6 +201,10 @@ ALL_SEARCH_QUERIES = [
         Habitat.SOIL,
         Topic.ECO_SERVICES,
     ),
+    *habitat_queries(9, Habitat.AGRI, HABITATS_AGRICULTURAL, AGRICULTURAL_TRENDS),
+    *habitat_queries(13, Habitat.INLAND_WATER, HABITATS_WATER, TRENDS),
+    *habitat_queries(17, Habitat.COAST, HABITATS_COASTS, TRENDS),
+    *habitat_queries(21, Habitat.URBAN, HABITATS_URBAN, TRENDS),
     Query(
         "Q25",
         "Ecosystem Services - Crosscutting",
