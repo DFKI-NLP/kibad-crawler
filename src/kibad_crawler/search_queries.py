@@ -124,6 +124,7 @@ class Habitat(Enum):
     AGRI = "Agricultural and Open Land"
     INLAND_WATER = "Inland waters & Floodplains"
     COAST = "Coasts & Coastal Waters"
+    ALL = "All habitats"
 
 
 class Topic(Enum):
@@ -133,6 +134,7 @@ class Topic(Enum):
     DRIVERS = "Drivers"
     MEASURES = "Measures"
     ECO_SERVICES = "Ecosystem Services"
+    CROSS_CUTTING = "Cross-cutting"
 
 
 @dataclass
@@ -154,5 +156,29 @@ ALL_SEARCH_QUERIES = [
         FOREST_ECOSYSTEM_SERVICES,
         Habitat.FOREST,
         Topic.ECO_SERVICES,
+    ),
+    Query("Q5", "Soil - Trends", SOIL_TRENDS, Habitat.SOIL, Topic.TRENDS),
+    Query("Q6", "Soil - Drivers", SOIL_DRIVERS, Habitat.SOIL, Topic.DRIVERS),
+    Query("Q7", "Soil - Measures", SOIL_MEASURES, Habitat.SOIL, Topic.MEASURES),
+    Query(
+        "Q8",
+        "Soil - Ecosystem Services",
+        SOIL_ECOSYSTEM_SERVICES,
+        Habitat.SOIL,
+        Topic.ECO_SERVICES,
+    ),
+    Query(
+        "Q25",
+        "Ecosystem Services - Crosscutting",
+        ECOSYSTEM_SERVICES_CROSS_SECTION,
+        Habitat.ALL,
+        Topic.CROSS_CUTTING,
+    ),
+    Query(
+        "Q26",
+        "Ecosystem Services - Habitats",
+        ECOSYSTEM_SERVICES_HABITATS,
+        Habitat.ALL,
+        Topic.CROSS_CUTTING,
     ),
 ]
