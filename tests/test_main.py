@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 import pytest
 from typer.testing import CliRunner
 
@@ -196,3 +197,27 @@ def test_download_paper_metadata_diff_invalid_releases(crawler, release_args: li
     # the start release must be a valid release and older than the end release
     assert isinstance(result.exception, AssertionError)
     assert crawler["get_papers_from_files"] == []
+
+
+def test_evaluate_search_queries(crawler, tmp_path, monkeypatch):
+    papers = [{"paperId": "p-1", "title": "Forest", "abstract": "trend"}]
+    json_dir = tmp_path / "semantic_scholar" / "release" / RELEASES[0] / "papers" / "f" / "json"
+    json_dir.mkdir(parents=True)
+    (json_dir / "papers-metadata-0.json").write_text(str(papers).replace("'", '"'))
+    reference = {"paperId": ["p-1"], "included": [1], "publication_venue_id": ["venue-1"]}
+    monkeypatch.setattr(main, "get_reference_papers", lambda habitat: pd.DataFrame(reference))
+    monkeypatch.setattr(main, "PROJ_ROOT", tmp_path)
+    # the real queries match no paper of this test
+    monkeypatch.setattr(
+        "kibad_crawler.evaluation.search_results.get_papers_from_search_with_sifts",
+        lambda query, collection: ["p-1"],
+    )
+    monkeypatch.setenv("SLURM_TMPDIR", str(tmp_path))
+
+    result = runner.invoke(main.app, ["evaluate-search-queries", "--release", RELEASES[0]])
+
+    assert result.exit_code == 0, result.output
+    report = (tmp_path / "evaluation" / "results" / "forest.md").read_text()
+    assert "Release `2026-08-25`, 1 papers" in report
+    assert "| in the publication venues |        1 |              1 |" in report
+    assert "nan" not in report
