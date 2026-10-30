@@ -64,6 +64,7 @@ def get_papers_from_files(
     search_params: PaperSearch,
     overwrite: bool = False,
     persistent: bool = False,
+    with_abstracts: bool = True,
 ):
     """Download and filter paper dataset files with `get_papers`. The files can
     be the files of a full release or the update files of a diff between two
@@ -84,6 +85,8 @@ def get_papers_from_files(
             already processed. Defaults to False.
         persistent (bool, optional): Whether or not to keep the original files
             after filtering papers. Defaults to False.
+        with_abstracts (bool, optional): Include the abstracts in the
+            downloading process. Defaults to True.
     """
     logger.info(f"{len(file_names)} paper dataset files to process in '{output_path}'")
     for file_name in file_names:
@@ -93,6 +96,7 @@ def get_papers_from_files(
             search_params=search_params,
             overwrite=overwrite,
             persistent=persistent,
+            with_abstracts=with_abstracts,
         )
 
 

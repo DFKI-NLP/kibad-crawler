@@ -220,6 +220,7 @@ def test_get_papers_from_files(tmp_path: Path, monkeypatch):
         output_path=tmp_path,
         search_params=search_params,
         persistent=True,
+        with_abstracts=False,
     )
 
     # the link of a file is requested when the file is processed, not before
@@ -230,6 +231,7 @@ def test_get_papers_from_files(tmp_path: Path, monkeypatch):
             "search_params": search_params,
             "overwrite": False,
             "persistent": True,
+            "with_abstracts": False,
         }
         for name in sorted(urls)
     ]
