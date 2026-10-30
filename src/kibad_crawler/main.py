@@ -450,15 +450,15 @@ def evaluate_search_queries(
     1. Load the papers of the release with their title and abstract into a
     `sifts` database.
 
-    2. For each habitat with screening tables, resolve the DOIs of the tables
-    to Semantic Scholar paper ids and publication venue ids. The result is
-    stored next to the tables in `data/external/screening_tables/`, so the API
-    is only called once per habitat.
+    2. For each literature search with screening tables, resolve the DOIs of
+    the tables to Semantic Scholar paper ids and publication venue ids. The
+    result is stored next to the tables in `data/external/screening_tables/`,
+    so the API is only called once per search.
 
     3. Restrict the reference papers to the publication venues of
-    --file-with-issn and run the queries of the habitat on the database.
+    --file-with-issn and run the queries that replicate the search.
 
-    Output (under the project root): `evaluation/results/<habitat>.md` with how
+    Output (under the project root): `evaluation/results/<search>.md` with how
     many reference papers are in the crawl and, per query, how many of them it
     returns and how they were screened.
     """
@@ -472,17 +472,18 @@ def evaluate_search_queries(
 
     results_dir = PROJ_ROOT / "evaluation" / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    for habitat in SCREENING_TABLES:
+    for tables in SCREENING_TABLES:
         df_coverage, df_queries = evaluate_queries(
-            queries=[query for query in ALL_SEARCH_QUERIES if query.habitat == habitat],
+            queries=[query for query in ALL_SEARCH_QUERIES if query.id in tables.query_ids],
             collection=collection,
             crawled_ids=crawled_ids,
-            df_reference=get_reference_papers(habitat),
+            df_reference=get_reference_papers(tables),
             venue_ids=venue_ids,
         )
-        output_path = results_dir / f"{habitat.name.lower()}.md"
+        output_path = results_dir / f"{tables.name}.md"
         output_path.write_text(
-            f"# {habitat.value}\n\n"
+            f"# {tables.name}\n\n"
+            f"Screening tables: {', '.join(f'`{name}`' for name in tables.file_names)}.\n\n"
             f"Release `{release}`, {len(crawled_ids):,} papers, publication venues of "
             f"`{Path(file_with_issn).name}`, papers published until {max_publication_date or 'the release'}.\n\n"
             f"## Reference papers in the crawl\n\n{df_coverage.to_markdown(index=False)}\n\n"
@@ -490,4 +491,4 @@ def evaluate_search_queries(
             f"{df_queries.fillna('').to_markdown(index=False)}\n",
             encoding="utf-8",
         )
-        logger.info(f"results of {habitat.value} saved to '{output_path}'")
+        logger.info(f"results of {tables.name} saved to '{output_path}'")

@@ -53,7 +53,11 @@ def get_documents_of_crawl(
                 missing += 1
                 continue
             publication_date = paper.get("publicationDate")
-            if max_publication_date and publication_date and publication_date > max_publication_date:
+            if (
+                max_publication_date
+                and publication_date
+                and publication_date > max_publication_date
+            ):
                 after_cut_date += 1
                 continue
             title = paper.get("title") or ""

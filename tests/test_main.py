@@ -205,7 +205,7 @@ def test_evaluate_search_queries(crawler, tmp_path, monkeypatch):
     json_dir.mkdir(parents=True)
     (json_dir / "papers-metadata-0.json").write_text(str(papers).replace("'", '"'))
     reference = {"paperId": ["p-1"], "included": [1], "publication_venue_id": ["venue-1"]}
-    monkeypatch.setattr(main, "get_reference_papers", lambda habitat: pd.DataFrame(reference))
+    monkeypatch.setattr(main, "get_reference_papers", lambda tables: pd.DataFrame(reference))
     monkeypatch.setattr(main, "PROJ_ROOT", tmp_path)
     # the real queries match no paper of this test
     monkeypatch.setattr(
@@ -217,6 +217,9 @@ def test_evaluate_search_queries(crawler, tmp_path, monkeypatch):
     result = runner.invoke(main.app, ["evaluate-search-queries", "--release", RELEASES[0]])
 
     assert result.exit_code == 0, result.output
+    assert len(list((tmp_path / "evaluation" / "results").glob("*.md"))) == len(
+        main.SCREENING_TABLES
+    )
     report = (tmp_path / "evaluation" / "results" / "forest.md").read_text()
     assert "Release `2026-08-25`, 1 papers" in report
     assert "| in the publication venues |        1 |              1 |" in report

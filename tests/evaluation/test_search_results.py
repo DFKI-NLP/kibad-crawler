@@ -61,7 +61,9 @@ def test_build_collection(tmp_path, monkeypatch):
 
 
 def test_get_coverage():
-    df = search_results.get_coverage(REFERENCE, crawled_ids={"p-1", "p-2", "p-3"}, venue_ids={"v-1"})
+    df = search_results.get_coverage(
+        REFERENCE, crawled_ids={"p-1", "p-2", "p-3"}, venue_ids={"v-1"}
+    )
 
     assert df.to_dict("records") == [
         {
@@ -86,7 +88,9 @@ def test_get_query_results():
 
     df = search_results.get_query_results(results, REFERENCE[REFERENCE["paperId"] != "p-9"])
 
-    assert df[["query", "returned", "reference papers", "relevant", "not relevant"]].values.tolist() == [
+    assert df[
+        ["query", "returned", "reference papers", "relevant", "not relevant"]
+    ].values.tolist() == [
         ["Q1", 2, 1, 1, 0],
         ["Q2", 3, 2, 1, 1],
         ["all queries", 4, 2, 1, 1],
