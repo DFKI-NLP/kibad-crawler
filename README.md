@@ -152,13 +152,22 @@ search_params = PaperSearch(
     min_citation_count=min_citation_count,
 )
 
-# (step 5) Get the links to the metadata files of the papers
-links_papers = datasets.download_links(release_id=release_id, dataset_name="papers")
-urls = links_papers["files"] if n_files == 0 else links_papers["files"][:n_files]
+# (step 5) Get the names of the metadata files of the papers
+file_names = sorted(
+    datasets.download_links_by_file_name(release_id=release_id, dataset_name="papers")
+)
+if n_files != 0:
+    file_names = file_names[:n_files]
+
+def get_url(file_name: str) -> str:
+    """Returns the current download link of a file of the release."""
+    links = datasets.download_links_by_file_name(release_id=release_id, dataset_name="papers")
+    return links[file_name]
 
 # (steps 8 to 11) Downloads files with the actual metadata of the papers
 get_papers_from_files(
-    urls=urls,
+    file_names=file_names,
+    get_url=get_url,
     output_path=RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers",
     search_params=search_params,
     overwrite=overwrite,
@@ -166,6 +175,36 @@ get_papers_from_files(
 )
 logger.info("finished successfully")
 ```
+
+### How the files are downloaded and filtered
+
+**A paper belongs to a publication venue by its id.** The crawler reads the
+ISSN codes of the CSV file, looks up the matching publication venues of the
+release and keeps a paper when its `publicationvenueid` is one of them. The
+dataset files are read line by line, so the number of venues does not change
+the speed and a 1 GB file is never held in memory.
+
+**A download link is a short lived credential, a file name is not.** The links
+of a release are pre-signed and stop working after a few hours, which is less
+than a run over all files of a release takes. The files are therefore addressed
+by their name, and the link of a file is requested right before the file is
+downloaded. The links of the release are requested again for every file, which
+is one request per file next to about 5,000 requests for the metadata.
+
+**A file on disk is a complete file.** A download is written to a file with the
+suffix `.tmp` that is renamed when it finished, and removed when it failed, so
+an interrupted download leaves nothing behind that a later run would reuse. The
+same applies to the JSON files with the metadata.
+
+**A repeated run continues where it stopped.** A paper dataset file whose CSV
+exists is not downloaded and not filtered again, and a batch of metadata whose
+JSON file exists is not requested again. Use `--overwrite` to download and
+request everything again, for example to update the citation counts of papers
+that are already stored.
+
+> **Note**: The option `--persistent` keeps the downloaded dataset files, about
+> 50 GB for a release, so that the papers can be filtered again with other
+> search criteria without downloading them again.
 
 ## Download papers between releases
 

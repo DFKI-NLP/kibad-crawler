@@ -209,23 +209,48 @@ def test_get_papers_from_files(tmp_path: Path, monkeypatch):
     calls = []
     monkeypatch.setattr(papers, "get_papers", lambda **kwargs: calls.append(kwargs))
     search_params = make_search_params()
-    urls = [FILE_URL, FILE_URL.replace("file-0", "file-1")]
+    urls = {
+        name: f"https://ai2-s2ag.s3.amazonaws.com/{name}?Expires=123"
+        for name in ["file-0.gz", "file-1.gz"]
+    }
 
     papers.get_papers_from_files(
-        urls=urls, output_path=tmp_path, search_params=search_params, persistent=True
+        file_names=sorted(urls),
+        get_url=urls.__getitem__,
+        output_path=tmp_path,
+        search_params=search_params,
+        persistent=True,
     )
 
-    # each file is processed with the same output path and search parameters
+    # the link of a file is requested when the file is processed, not before
     assert calls == [
         {
-            "url": url,
+            "url": urls[name],
             "output_path": tmp_path,
             "search_params": search_params,
             "overwrite": False,
             "persistent": True,
         }
-        for url in urls
+        for name in sorted(urls)
     ]
+
+
+def test_get_papers_from_files_requests_the_link_per_file(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(papers, "get_papers", lambda **kwargs: None)
+    requested: list[str] = []
+
+    def get_url(file_name: str) -> str:
+        requested.append(file_name)
+        return f"https://ai2-s2ag.s3.amazonaws.com/{file_name}?Expires=123"
+
+    papers.get_papers_from_files(
+        file_names=["file-0.gz", "file-1.gz", "file-2.gz"],
+        get_url=get_url,
+        output_path=tmp_path,
+        search_params=make_search_params(),
+    )
+
+    assert requested == ["file-0.gz", "file-1.gz", "file-2.gz"]
 
 
 @pytest.mark.parametrize(

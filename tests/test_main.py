@@ -55,13 +55,17 @@ def test_download_publication_venues():
 def test_download_paper_metadata(
     tmp_path: Path, crawler, monkeypatch, n_files_args: list, expected_files: list
 ):
+    links_requested: list[str] = []
+
+    def fake_download_links_by_file_name(release_id, dataset_name):
+        links_requested.append(release_id)
+        return {
+            f"file-{i}.gz": f"https://ai2-s2ag.s3.amazonaws.com/file-{i}.gz?Expires=123"
+            for i in range(3)
+        }
+
     monkeypatch.setattr(
-        main.datasets,
-        "download_links",
-        lambda release_id, dataset_name: {
-            "name": dataset_name,
-            "files": [f"https://ai2-s2ag.s3.amazonaws.com/file-{i}.gz" for i in range(3)],
-        },
+        main.datasets, "download_links_by_file_name", fake_download_links_by_file_name
     )
 
     result = runner.invoke(
@@ -73,11 +77,15 @@ def test_download_paper_metadata(
     assert crawler["publication_venue_ids"] == ["2026-09-01"]
     # --n-files 0 (default) means all the files of the release
     [call] = crawler["get_papers_from_files"]
-    assert [url.split("/")[-1] for url in call["urls"]] == expected_files
+    assert call["file_names"] == expected_files
     assert (
         call["output_path"] == tmp_path / "semantic_scholar" / "release" / "2026-09-01" / "papers"
     )
     assert call["search_params"].publication_venue_ids == ["venue-1", "venue-2"]
+    # the link of a file is requested from the release when the file is needed
+    assert call["get_url"]("file-1.gz") == (
+        "https://ai2-s2ag.s3.amazonaws.com/file-1.gz?Expires=123"
+    )
 
 
 def test_download_paper_metadata_diff(tmp_path: Path, crawler, monkeypatch):
@@ -131,20 +139,21 @@ def test_download_paper_metadata_diff(tmp_path: Path, crawler, monkeypatch):
     # the update files of each diff are processed into their own folder
     release_path = tmp_path / "semantic_scholar" / "release"
     calls = crawler["get_papers_from_files"]
-    assert [(call["urls"], call["output_path"]) for call in calls] == [
+    assert [(call["file_names"], call["output_path"]) for call in calls] == [
         (
-            ["https://ai2-s2ag.s3.amazonaws.com/update-0.gz"],
+            ["update-0.gz"],
             release_path / "2026-09-01" / "diffs" / "2026-08-25_to_2026-09-01" / "papers",
         ),
         (
-            [
-                "https://ai2-s2ag.s3.amazonaws.com/update-1.gz",
-                "https://ai2-s2ag.s3.amazonaws.com/update-2.gz",
-            ],
+            ["update-1.gz", "update-2.gz"],
             release_path / "2026-09-09" / "diffs" / "2026-09-01_to_2026-09-09" / "papers",
         ),
     ]
     assert calls[0]["search_params"].max_publication_date == "2026-09-11"
+
+    # the link of an update file is requested from the diff it belongs to
+    assert calls[0]["get_url"]("update-0.gz") == "https://ai2-s2ag.s3.amazonaws.com/update-0.gz"
+    assert calls[1]["get_url"]("update-2.gz") == "https://ai2-s2ag.s3.amazonaws.com/update-2.gz"
 
 
 @pytest.mark.parametrize(

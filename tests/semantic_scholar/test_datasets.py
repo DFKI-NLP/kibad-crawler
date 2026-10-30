@@ -91,6 +91,22 @@ def test_download_links_incremental_diffs(api_calls):
     ]
 
 
+def test_download_links_by_file_name(api_calls):
+    links = {
+        "name": "papers",
+        "files": [FILE_URL, FILE_URL.replace("file-0", "file-1")],
+    }
+    api_calls.content = json.dumps(links).encode()
+
+    links_by_file_name = datasets.download_links_by_file_name("2026-09-01", "papers")
+
+    # the query string that signs the link is not part of the file name
+    assert links_by_file_name == {
+        "file-0.gz": FILE_URL,
+        "file-1.gz": FILE_URL.replace("file-0", "file-1"),
+    }
+
+
 @pytest.fixture
 def get_requests(monkeypatch, make_response):
     """Replace `requests.get` in the datasets module and return the list of
@@ -125,6 +141,8 @@ def test_download_dataset_from_semantic_scholar(tmp_path: Path, get_requests):
     assert out_path == output_path / "file-0.gz"
     assert out_path.read_bytes() == b"file content"
     assert get_requests == [FILE_URL]
+    # the temporary file of the download is renamed, not left behind
+    assert [x.name for x in output_path.iterdir()] == ["file-0.gz"]
 
 
 def test_download_dataset_from_semantic_scholar_already_downloaded(tmp_path: Path, get_requests):
@@ -154,6 +172,64 @@ def test_download_dataset_from_semantic_scholar_http_error(
     # the download is retried 3 times and no incomplete file is left behind
     assert get_requests == [FILE_URL] * 3
     assert not (tmp_path / "file-0.gz").exists()
+
+
+def test_download_dataset_from_semantic_scholar_interrupted(
+    tmp_path: Path, monkeypatch, no_retry_delay
+):
+    class InterruptedResponse:
+        """Response that stops sending data in the middle of the download."""
+
+        headers = {"Content-Length": "12"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size):
+            yield b"file"
+            raise requests.ConnectionError("connection broken")
+
+    monkeypatch.setattr(datasets.requests, "get", lambda url, **kwargs: InterruptedResponse())
+
+    with pytest.raises(requests.ConnectionError):
+        datasets.download_dataset_from_semantic_scholar(url=FILE_URL, output_path=tmp_path)
+
+    # an interrupted download leaves no file that the next call would reuse
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_download_dataset_from_semantic_scholar_short(tmp_path: Path, monkeypatch, no_retry_delay):
+    class ShortResponse:
+        """Response that sends fewer bytes than it announces and ends without
+        an error, e.g. a connection that is closed by the server."""
+
+        headers = {"Content-Length": "12"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size):
+            yield b"file"
+
+    monkeypatch.setattr(datasets.requests, "get", lambda url, **kwargs: ShortResponse())
+
+    with pytest.raises(OSError, match="4 of 12 bytes"):
+        datasets.download_dataset_from_semantic_scholar(url=FILE_URL, output_path=tmp_path)
+
+    # an incomplete file is not kept, so the next call downloads it again
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_read_publication_venues(tmp_path: Path):
