@@ -1,5 +1,6 @@
 from datetime import datetime
 from functools import partial
+from pathlib import Path
 from typing import Annotated, Literal
 
 from loguru import logger
@@ -10,7 +11,16 @@ from kibad_crawler.basic_filter import (
     execute_all_search_queries,
     execute_all_search_queries_sift,
 )
-from kibad_crawler.config import RAW_DATA_DIR
+from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
+from kibad_crawler.evaluation.reference_papers import (
+    SCREENING_TABLES,
+    get_reference_papers,
+)
+from kibad_crawler.evaluation.search_results import (
+    build_collection,
+    evaluate_queries,
+    get_documents_of_crawl,
+)
 from kibad_crawler.papers import (
     PaperSearch,
     get_papers,
@@ -412,3 +422,73 @@ def string_search_info():
 
 if __name__ == "__main__":
     app()
+
+
+@app.command()
+def evaluate_search_queries(
+    release: Annotated[
+        str,
+        typer.Option(
+            help="Release version from Semantic Scholar with format 'YYYY-MM-DD' that is already downloaded with download-paper-metadata."
+        ),
+    ],
+    file_with_issn: Annotated[
+        str,
+        typer.Option(help="CSV file with the ISSN codes the release was downloaded with."),
+    ] = str(RAW_DATA_DIR / "journals.csv"),
+    max_publication_date: Annotated[
+        str | None,
+        typer.Option(
+            help="Leave out the papers published after this date, with format 'YYYY-MM-DD'. Papers without a publication date are kept."
+        ),
+    ] = None,
+):
+    """Compare the search queries with the screening tables of the literature review.
+
+    Workflow:
+
+    1. Load the papers of the release with their title and abstract into a
+    `sifts` database.
+
+    2. For each literature search with screening tables, resolve the DOIs of
+    the tables to Semantic Scholar paper ids and publication venue ids. The
+    result is stored next to the tables in `data/external/screening_tables/`,
+    so the API is only called once per search.
+
+    3. Restrict the reference papers to the publication venues of
+    --file-with-issn and run the queries that replicate the search.
+
+    Output (under the project root): `evaluation/results/<search>.md` with how
+    many reference papers are in the crawl and, per query, how many of them it
+    returns and how they were screened.
+    """
+    documents = get_documents_of_crawl(
+        papers_path=RAW_DATA_DIR / "semantic_scholar" / "release" / release / "papers",
+        max_publication_date=max_publication_date,
+    )
+    crawled_ids = {paper_id for paper_id, _ in documents}
+    collection = build_collection(documents, name=f"{release}_until_{max_publication_date}")
+    venue_ids = set(get_publication_venue_ids(release_id=release, file_with_issn=file_with_issn))
+
+    results_dir = PROJ_ROOT / "evaluation" / "results"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    for tables in SCREENING_TABLES:
+        df_coverage, df_queries = evaluate_queries(
+            queries=[query for query in ALL_SEARCH_QUERIES if query.id in tables.query_ids],
+            collection=collection,
+            crawled_ids=crawled_ids,
+            df_reference=get_reference_papers(tables),
+            venue_ids=venue_ids,
+        )
+        output_path = results_dir / f"{tables.name}.md"
+        output_path.write_text(
+            f"# {tables.name}\n\n"
+            f"Screening tables: {', '.join(f'`{name}`' for name in tables.file_names)}.\n\n"
+            f"Release `{release}`, {len(crawled_ids):,} papers, publication venues of "
+            f"`{Path(file_with_issn).name}`, papers published until {max_publication_date or 'the release'}.\n\n"
+            f"## Reference papers in the crawl\n\n{df_coverage.to_markdown(index=False)}\n\n"
+            f"## Reference papers of the publication venues returned by the queries\n\n"
+            f"{df_queries.fillna('').to_markdown(index=False)}\n",
+            encoding="utf-8",
+        )
+        logger.info(f"results of {tables.name} saved to '{output_path}'")
