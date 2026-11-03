@@ -1,7 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import gzip
-from io import StringIO
 import json
 import os
 from pathlib import Path
@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, PROCESSED_DATA_DIR, RAW_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
-from kibad_crawler.utils import chunker, get_human_readable_size, get_issn_codes
+from kibad_crawler.utils import chunker, get_file_name, get_human_readable_size, get_issn_codes
 
 
 @dataclass
@@ -62,33 +62,45 @@ def get_publication_venue_ids(release_id: str, file_with_issn: Path | str) -> li
 
 
 def get_papers_from_files(
-    urls: list[str],
+    file_names: list[str],
+    get_url: Callable[[str], str],
     output_path: Path,
     search_params: PaperSearch,
     overwrite: bool = False,
     persistent: bool = False,
+    with_abstracts: bool = True,
 ):
-    """Download and filter a list of paper dataset files with `get_papers`.
-    The list can be the files of a full release or the update files of a diff
-    between two releases, since both have the same structure.
+    """Download and filter paper dataset files with `get_papers`. The files can
+    be the files of a full release or the update files of a diff between two
+    releases, since both have the same structure.
+
+    The download links of Semantic Scholar are pre-signed and stop working
+    after a few hours, which is longer than one file takes but shorter than a
+    run over all files of a release. The link of a file is therefore requested
+    with `get_url` right before the file is downloaded.
 
     Args:
-        urls (list[str]): URLs of the paper dataset files to download.
+        file_names (list[str]): Names of the paper dataset files to download.
+        get_url (Callable[[str], str]): Returns the current download link of a
+            file name.
         output_path (Path): Storage path to save the downloaded files.
         search_params (PaperSearch): Search and filter criteria.
         overwrite (bool, optional): Whether or not to overwrite a file that is
             already processed. Defaults to False.
         persistent (bool, optional): Whether or not to keep the original files
             after filtering papers. Defaults to False.
+        with_abstracts (bool, optional): Include the abstracts in the
+            downloading process. Defaults to True.
     """
-    logger.info(f"{len(urls)} paper dataset files to process in '{output_path}'")
-    for url in urls:
+    logger.info(f"{len(file_names)} paper dataset files to process in '{output_path}'")
+    for file_name in file_names:
         get_papers(
-            url=url,
+            url=get_url(file_name),
             output_path=output_path,
             search_params=search_params,
             overwrite=overwrite,
             persistent=persistent,
+            with_abstracts=with_abstracts,
         )
 
 
@@ -121,8 +133,7 @@ def get_papers(
             downloading process. Default to True.
     """
 
-    file_name = url.split("?")[0].split("/")[-1]
-    csv_path = output_path / f"{file_name}.csv"
+    csv_path = output_path / f"{get_file_name(url)}.csv"
     if csv_path.exists():
         logger.debug(f"Skipping existing {csv_path}")
         if with_abstracts:
@@ -132,17 +143,23 @@ def get_papers(
     file_path = datasets.download_dataset_from_semantic_scholar(
         url=url, output_path=output_path, overwrite=overwrite
     )
-    file_content = ""
-    with gzip.open(file_path, "r") as f:
-        for line in tqdm(f.readlines(), leave=True):
-            if any(x in line.decode() for x in search_params.publication_venue_ids):
-                file_content += line.decode()
+    # a set keeps the filter independent of the number of venues, and reading the
+    # file line by line keeps the whole archive out of memory
+    publication_venue_ids = set(search_params.publication_venue_ids)
+    papers = []
+    with gzip.open(file_path, "rt", encoding="utf-8") as f:
+        for line in tqdm(f, leave=True):
+            if not line.strip():
+                continue
+            paper = json.loads(line)
+            if paper.get("publicationvenueid") in publication_venue_ids:
+                papers.append(paper)
 
     # a file can have no papers from the selected venues, e.g. a small update file of a diff
-    if file_content == "":
-        df_papers = pd.DataFrame(columns=["url", "publicationdate", "citationcount"])
+    if papers:
+        df_papers = pd.DataFrame(papers)
     else:
-        df_papers = pd.read_json(StringIO(file_content), lines=True)
+        df_papers = pd.DataFrame(columns=["url", "publicationdate", "citationcount"])
 
     min_publication_date_filter = datetime.strptime(search_params.min_publication_date, "%Y-%m-%d")
     max_publication_date_filter = datetime.strptime(search_params.max_publication_date, "%Y-%m-%d")

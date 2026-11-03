@@ -13,7 +13,7 @@ import requests
 from retry import retry
 
 from kibad_crawler.config import S2_API_KEY
-from kibad_crawler.utils import api_call_get, get_human_readable_size
+from kibad_crawler.utils import api_call_get, get_file_name, get_human_readable_size
 
 URL_BASE: str = "https://api.semanticscholar.org/datasets/v1"
 
@@ -93,6 +93,23 @@ def download_links(release_id: str, dataset_name: DatasetName) -> dict:
     return response.json()
 
 
+def download_links_by_file_name(release_id: str, dataset_name: DatasetName) -> dict:
+    """Returns the current download link of every file of a dataset, by file
+    name. The links are pre-signed and stop working after a few hours, while
+    the files themselves keep their name, so a file is addressed by its name
+    and its link is requested when it is needed.
+
+    Args:
+        release_id (str): ID of the release.
+        dataset_name (DatasetName): Name of the dataset.
+
+    Returns:
+        dict: Download link per file name.
+    """
+    links = download_links(release_id=release_id, dataset_name=dataset_name)
+    return {get_file_name(url): url for url in links["files"]}
+
+
 def download_links_incremental_diffs(
     dataset_name: DatasetName, end_release_id: str, start_release_id: str
 ):
@@ -143,6 +160,11 @@ def download_dataset_from_semantic_scholar(
 ) -> Path:
     """Download file from a `url` and stores it to a `output_path`.
 
+    The file is written to a temporary file that is renamed after the download,
+    so that an interrupted download does not leave a file behind that the next
+    call would reuse as if it was complete. The temporary file is renamed only
+    when it has the size that the server announced.
+
     Args:
         url (str): URL to the file.
         output_path (Path): Path where to store the downloaded file.
@@ -153,11 +175,15 @@ def download_dataset_from_semantic_scholar(
 
     Returns:
         Path: Path to the stored file.
+
+    Raises:
+        OSError: If fewer bytes were downloaded than the server announced.
     """
 
     output_path.mkdir(parents=True, exist_ok=True)
-    file_name = url.split("?")[0].split("/")[-1]
+    file_name = get_file_name(url)
     out_path = output_path / file_name
+    tmp_path = out_path.with_name(f"{file_name}.tmp")
 
     if not overwrite and out_path.exists():
         logger.info(f"{out_path} already downloaded.")
@@ -165,13 +191,26 @@ def download_dataset_from_semantic_scholar(
 
     with requests.get(url, stream=True, allow_redirects=True, timeout=10) as response:
         response.raise_for_status()
-        logger.info(
-            f"Downloading {out_path} {get_human_readable_size(int(response.headers['Content-Length']))}"
-        )
-        with open(out_path, mode="wb") as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                f.write(chunk)
+        file_size = int(response.headers["Content-Length"])
+        logger.info(f"Downloading {out_path} {get_human_readable_size(file_size)}")
+        try:
+            with open(tmp_path, mode="wb") as f:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    f.write(chunk)
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            raise
 
+    # a download can end without an error and still be short, so the file is
+    # kept only when it has the size that the server announced
+    downloaded_size = tmp_path.stat().st_size
+    if downloaded_size != file_size:
+        tmp_path.unlink()
+        raise OSError(
+            f"'{out_path}' is incomplete, {downloaded_size} of {file_size} bytes downloaded"
+        )
+
+    tmp_path.replace(out_path)
     return out_path
 
 

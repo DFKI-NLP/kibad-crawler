@@ -66,6 +66,24 @@ PAPERS_DATASET = [
         "publicationdate": "2025-01-01",
         "citationcount": 10,
     },
+    # from a venue that is not selected, with a selected venue id in another field
+    {
+        "corpusid": 7,
+        "url": "https://www.semanticscholar.org/paper/paper-7",
+        "title": "Paper 7 about venue-1",
+        "publicationvenueid": "venue-3",
+        "publicationdate": "2025-01-01",
+        "citationcount": 10,
+    },
+    # without a publication venue
+    {
+        "corpusid": 8,
+        "url": "https://www.semanticscholar.org/paper/paper-8",
+        "title": "Paper 8",
+        "publicationvenueid": None,
+        "publicationdate": "2025-01-01",
+        "citationcount": 10,
+    },
 ]
 
 
@@ -80,7 +98,8 @@ def downloads(monkeypatch):
         output_path.mkdir(parents=True, exist_ok=True)
         file_path = output_path / "file-0.gz"
         with gzip.open(file_path, "wt") as f:
-            f.write("\n".join(json.dumps(paper) for paper in PAPERS_DATASET))
+            # the archive can end with an empty line
+            f.write("\n".join(json.dumps(paper) for paper in PAPERS_DATASET) + "\n\n")
         return file_path
 
     monkeypatch.setattr(
@@ -190,23 +209,50 @@ def test_get_papers_from_files(tmp_path: Path, monkeypatch):
     calls = []
     monkeypatch.setattr(papers, "get_papers", lambda **kwargs: calls.append(kwargs))
     search_params = make_search_params()
-    urls = [FILE_URL, FILE_URL.replace("file-0", "file-1")]
+    urls = {
+        name: f"https://ai2-s2ag.s3.amazonaws.com/{name}?Expires=123"
+        for name in ["file-0.gz", "file-1.gz"]
+    }
 
     papers.get_papers_from_files(
-        urls=urls, output_path=tmp_path, search_params=search_params, persistent=True
+        file_names=sorted(urls),
+        get_url=urls.__getitem__,
+        output_path=tmp_path,
+        search_params=search_params,
+        persistent=True,
+        with_abstracts=False,
     )
 
-    # each file is processed with the same output path and search parameters
+    # the link of a file is requested when the file is processed, not before
     assert calls == [
         {
-            "url": url,
+            "url": urls[name],
             "output_path": tmp_path,
             "search_params": search_params,
             "overwrite": False,
             "persistent": True,
+            "with_abstracts": False,
         }
-        for url in urls
+        for name in sorted(urls)
     ]
+
+
+def test_get_papers_from_files_requests_the_link_per_file(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(papers, "get_papers", lambda **kwargs: None)
+    requested: list[str] = []
+
+    def get_url(file_name: str) -> str:
+        requested.append(file_name)
+        return f"https://ai2-s2ag.s3.amazonaws.com/{file_name}?Expires=123"
+
+    papers.get_papers_from_files(
+        file_names=["file-0.gz", "file-1.gz", "file-2.gz"],
+        get_url=get_url,
+        output_path=tmp_path,
+        search_params=make_search_params(),
+    )
+
+    assert requested == ["file-0.gz", "file-1.gz", "file-2.gz"]
 
 
 @pytest.mark.parametrize(
@@ -235,6 +281,19 @@ def test_get_papers(
     # the dataset file is removed after filtering and the abstracts are downloaded
     assert not (tmp_path / "file-0.gz").exists()
     assert abstracts == [{"file_path": csv_path, "overwrite": True}]
+
+
+def test_get_papers_ignores_venue_ids_in_other_fields(tmp_path: Path, downloads, abstracts):
+    papers.get_papers(
+        url=FILE_URL,
+        output_path=tmp_path,
+        search_params=make_search_params(),
+        with_abstracts=False,
+    )
+
+    # only the publication venue of a paper decides, not a venue id somewhere in its text
+    df_papers = pd.read_csv(tmp_path / "file-0.gz.csv")
+    assert df_papers["corpusid"].to_list() == [1, 2]
 
 
 def test_get_papers_persistent(tmp_path: Path, downloads, abstracts):

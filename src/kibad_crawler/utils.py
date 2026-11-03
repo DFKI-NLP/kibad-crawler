@@ -126,6 +126,19 @@ def get_issn_codes(path_journals_csv: Path | str) -> list:
     return issn
 
 
+def get_file_name(url: str) -> str:
+    """Return the name of the file a download link points to, without the
+    query string that signs the link.
+
+    Args:
+        url (str): URL of the file.
+
+    Returns:
+        str: Name of the file.
+    """
+    return url.split("?")[0].split("/")[-1]
+
+
 def chunker(seq: list, size: int):
     """Divide a large list into lists of the given size."""
     return (seq[pos : pos + size] for pos in range(0, len(seq), size))
