@@ -353,6 +353,12 @@ def run_string_searches(
             help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
         ),
     ] = None,
+    release_diff: Annotated[
+        str | None,
+        typer.Option(
+            help="Release version from Semantic Scholar to compare with, format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
+        ),
+    ] = None,
     method: Annotated[
         Literal["sifts", "plain"],
         typer.Option(
@@ -383,7 +389,7 @@ def run_string_searches(
     if method == "plain":
         execute_all_search_queries(release_id=release_id)
     elif method == "sifts":
-        execute_all_search_queries_sift(release_id=release_id)
+        execute_all_search_queries_sift(release_id=release_id, release_diff=release_diff)
 
 
 @app.command()
@@ -422,17 +428,30 @@ def string_search_info():
 
 @app.command()
 def download_open_access_files(
-    release: Annotated[
-        str | None,
-        typer.Option(
-            help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. It will use the latest release in case it is not provided."
-        ),
-    ] = None,
+    input_path: Annotated[
+        str,
+        typer.Argument(help="Path to JSON files with Semantic Scholar paper metadata."),
+    ],
 ):
-    """Download open access papers."""
-    release_id = release or datasets.get_available_releases()[-1]
-    input_path = INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers"
-    download_pdf_files(input_path=input_path, release_id=release_id)
+    """Download open access papers. This command collects all the open access
+    URL from the given release date and proceeds to download the PDF version of
+    the papers.
+
+    If a `release_diff` is provided, it will search the metadata of the papers
+    in the corresponding folder of the diff.
+
+    Before running `uv run kibad-crawler download_open_access_files` the metadata
+    and the results from the keyword searches must have been completed. Run the
+    following commands to download the paper's metadata and filter them with
+    the keyword searches.
+
+    uv run kibad-crawler download-paper-metadata            # 1) download metadata of the papers
+    uv run kibad-crawler run-string-searches                # 2) applies keyword searches
+    uv run kibad-crawler download_open_access_files <PATH>  # 3) download the open access PDF files
+    """
+
+    logger.info(f"Searching for paper metadata in '{input_path}'")
+    download_pdf_files(input_path=Path(input_path))
 
 
 if __name__ == "__main__":

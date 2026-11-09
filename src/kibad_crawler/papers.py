@@ -16,7 +16,12 @@ from tqdm import tqdm
 
 from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, PROCESSED_DATA_DIR, RAW_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
-from kibad_crawler.utils import chunker, get_file_name, get_human_readable_size, get_issn_codes
+from kibad_crawler.utils import (
+    chunker,
+    get_file_name,
+    get_human_readable_size,
+    get_issn_codes,
+)
 
 
 @dataclass
@@ -210,7 +215,9 @@ def get_abstracts(file_path: Path, overwrite: bool = False):
     if stored_batches and not overwrite:
         logger.info(f"Skipping {len(stored_batches):,} batches already stored in {json_path}")
 
-    logger.info(f"Downloading abstracts to {json_path} ...")
+    logger.info(
+        f"Downloading abstracts in batches of {MAX_NUM_BATCH_PAPERS} papers to {json_path} ..."
+    )
     for i, group in tqdm(enumerate(groups), total=len(groups), desc="Downloading abstracts"):
         json_file = json_path / f"papers-metadata-{i}.json"
         if i in stored_batches and not overwrite:
@@ -294,7 +301,7 @@ def download_open_access_pdf(
     return out_path
 
 
-def download_pdf_files(input_path: Path, release_id: str):
+def download_pdf_files(input_path: Path):
     """Handles the downloading of all the papers from in a directory. It
     expects JSON files with semantic scholar structure including columns such
     as: ["paperId", "openAccessPdf.url", "isOpenAccess", "openAccessPdf.url"]
@@ -308,12 +315,12 @@ def download_pdf_files(input_path: Path, release_id: str):
     files = [x for x in Path(input_path).glob("**/*.json")]
 
     if len(files) == 0:
-        logger.info(f"Finished. No papers to download found for '{release_id}' release.")
+        logger.info(f"Finished. No papers to download found in '{input_path}'")
 
     dfs = []
     papers_found = 0
     for file in files:
-        with open(file) as f:
+        with open(file, encoding="utf-8") as f:
             data = json.load(f)
 
         df_aux = pd.json_normalize(data)
@@ -334,12 +341,10 @@ def download_pdf_files(input_path: Path, release_id: str):
     logger.info(f"{df.shape[0]:,} open access papers to be downloaded")
 
     # directory to save the PDF files
-    output_dir = (
-        PROCESSED_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "pdf"
-    )
+    output_dir = input_path / "open_access_pdf"
 
     # sequential download of the files
-    for i, r in df.iterrows():
+    for _, r in df.iterrows():
         download_open_access_pdf(
             url=r["openAccessPdf.url"], path=output_dir, file_name=f'{r["paperId"]}.pdf'
         )

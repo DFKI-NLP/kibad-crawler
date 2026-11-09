@@ -278,7 +278,7 @@ def get_papers_from_search_with_sifts(
     return paper_ids
 
 
-def execute_all_search_queries_sift(release_id: str):
+def execute_all_search_queries_sift(release_id: str, release_diff: str | None = None):
     """Run the string searches using a SQLite database with sifts.
 
     Args:
