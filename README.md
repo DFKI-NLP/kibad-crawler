@@ -86,14 +86,14 @@ uv run kibad-crawler download-paper-metadata-diff --help
 uv run kibad-crawler download-paper-metadata-diff --start-release 2026-09-01
 
 uv run kibad-crawler run-string-searches --help
-uv run kibad-crawler run-string-searches --method sifts
-uv run kibad-crawler run-string-searches --method plain
+uv run kibad-crawler run-string-searches --release YYYY-MM-DD
+uv run kibad-crawler run-string-searches --release YYYY-MM-DD --release-diff YYYY-MM-DD
 
 uv run kibad-crawler string-search-info --help
 uv run kibad-crawler string-search-info
 
 uv run kibad-crawler download-open-access-files --help
-uv run kibad-crawler download-open-access-files
+uv run kibad-crawler download-open-access-files <PATH_TO_RESULTS_FROM_STRING_SEARCH>
 ```
 
 ## Download algorithm

@@ -1,16 +1,13 @@
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from loguru import logger
 from rich import print as print_rich
 import typer
 
-from kibad_crawler.basic_filter import (
-    execute_all_search_queries,
-    execute_all_search_queries_sift,
-)
+from kibad_crawler.basic_filter import execute_all_search_queries_sift
 from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
@@ -359,12 +356,6 @@ def run_string_searches(
             help="Release version from Semantic Scholar to compare with, format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
         ),
     ] = None,
-    method: Annotated[
-        Literal["sifts", "plain"],
-        typer.Option(
-            help="Search strings with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
-        ),
-    ] = "sifts",
 ):
     """
     Select papers based on keyword search. This filters a Semantic Scholar release
@@ -386,10 +377,7 @@ def run_string_searches(
     Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
     """
     release_id = release or datasets.get_available_releases()[-1]
-    if method == "plain":
-        execute_all_search_queries(release_id=release_id)
-    elif method == "sifts":
-        execute_all_search_queries_sift(release_id=release_id, release_diff=release_diff)
+    execute_all_search_queries_sift(release_id=release_id, release_diff=release_diff)
 
 
 @app.command()
