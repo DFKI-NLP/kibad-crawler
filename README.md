@@ -302,6 +302,57 @@ papers = [...]  # list of paper dicts from bulk API
 filtered = client.filter_by_relevance(papers, criteria)
 ``` -->
 
+# Docker
+
+```bash
+# Remove and build a new Docker image
+docker rmi $(docker images kibad/crawler:1.0 -q) \
+&& docker build -t kibad/crawler:1.0 .
+
+# Start a new container that can run CLI commands
+docker run --name crawler \
+    -itd \
+    -v ./data:/opt/kibad-crawler/data \
+    kibad/crawler:1.0
+
+# Log in to the container
+docker exec -it crawler bash
+
+# Start an ephimeral container to list releases
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler list-releases'
+
+# Start an ephimeral container to download publication venues
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    -v ./data:/opt/kibad-crawler/data \
+    -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler download-publication-venues'
+
+# Start an ephimeral container to download paper's metadata
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    -v ./data:/opt/kibad-crawler/data \
+    -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler download-paper-metadata'
+
+# Start an ephimeral container to filter paper's metadata based on keyword searches
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    -v ./data:/opt/kibad-crawler/data \
+    -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler run-string-searches'
+```
+
 # Resources
 
 - [Semantic Scholar API - Overview](https://www.semanticscholar.org/product/api)
