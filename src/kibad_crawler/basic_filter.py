@@ -126,9 +126,7 @@ def save_selected_papers(paper_ids: list, query: Query, files_path: Path, output
     )
 
     output_file_path = output_dir / f"{query.id} - {query.name}.json"
-    logger.info(
-        f'{len(paper_ids):,} "{query.name}" papers saved to "{output_file_path}"'
-    )
+    logger.info(f'{len(paper_ids):,} "{query.name}" papers saved to "{output_file_path}"')
 
 
 def _check_papers_exist(release_id: str) -> bool:
