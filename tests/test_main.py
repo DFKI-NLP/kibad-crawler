@@ -239,7 +239,7 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main.SemanticFilter, "cross_validation", fake_cross_validation)
     monkeypatch.setattr(main, "PROJ_ROOT", tmp_path)
-    monkeypatch.setattr(main, "MODELS_DIR", tmp_path / "models")
+    monkeypatch.setattr(main, "INTERIM_DATA_DIR", tmp_path / "interim")
 
     result = runner.invoke(
         main.app,

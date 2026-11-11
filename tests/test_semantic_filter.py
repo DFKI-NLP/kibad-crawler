@@ -37,7 +37,10 @@ def test_get_embeddings_requests_only_new_dois(tmp_path, monkeypatch):
     def fake_batch(ids, fields):
         requested.extend(ids)
         answers = {
-            "DOI:10.1/a": {"paperId": "a", "embedding": {"model": "specter_v2", "vector": [1.0, 2.0]}},
+            "DOI:10.1/a": {
+                "paperId": "a",
+                "embedding": {"model": "specter_v2", "vector": [1.0, 2.0]},
+            },
             "DOI:10.1/b": {"paperId": "b", "embedding": None},
         }
         return [answers.get(paper_id) for paper_id in ids]
@@ -132,7 +135,9 @@ def test_save_and_load(tmp_path):
 def test_evaluate(embeddings, tmp_path):
     SemanticFilter.train(DOIS, LABELS).save(tmp_path / "model")
 
-    metrics = SemanticFilter.evaluate(tmp_path / "model", ["r1", "n1", "missing"], [True, False, True])
+    metrics = SemanticFilter.evaluate(
+        tmp_path / "model", ["r1", "n1", "missing"], [True, False, True]
+    )
 
     assert metrics["accuracy"] == 1.0
     assert metrics["skipped"] == 1.0
@@ -143,7 +148,9 @@ def test_create_splits():
     dois = [f"d{i}" for i in range(10)]
     labels = [i % 2 == 0 for i in range(10)]
 
-    train_dois, train_labels, test_dois, test_labels = SemanticFilter.create_splits(dois, labels, seed=1)
+    train_dois, train_labels, test_dois, test_labels = SemanticFilter.create_splits(
+        dois, labels, seed=1
+    )
 
     assert (len(train_dois), len(test_dois)) == (8, 2)
     assert sorted(train_dois + test_dois) == sorted(dois)
@@ -158,6 +165,13 @@ def test_cross_validation(embeddings, tmp_path):
 
     results = SemanticFilter.cross_validation(dois, labels, tmp_path, n_splits=3)
 
-    assert set(results) == {"accuracy", "precision", "recall", "f1", "accuracy_keep_all", "skipped"}
+    assert set(results) == {
+        "accuracy",
+        "precision",
+        "recall",
+        "f1",
+        "accuracy_keep_all",
+        "skipped",
+    }
     assert all(len(value) == 2 for value in results.values())
     assert sorted(path.name for path in tmp_path.iterdir()) == ["split_0", "split_1", "split_2"]

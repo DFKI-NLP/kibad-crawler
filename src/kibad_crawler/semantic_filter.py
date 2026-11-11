@@ -41,7 +41,9 @@ def get_embeddings(dois: list[str], cache_path: Path = EMBEDDINGS_FILE) -> dict[
         dict[str, list | None]: Embedding per DOI, None where Semantic Scholar
             does not know the paper or has no embedding for it.
     """
-    cache: dict[str, list | None] = json.loads(cache_path.read_text()) if cache_path.exists() else {}
+    cache: dict[str, list | None] = (
+        json.loads(cache_path.read_text()) if cache_path.exists() else {}
+    )
     missing = sorted(set(dois) - set(cache))
     for i, group in enumerate(chunker(missing, 500)):
         papers = academic_graph.batch([f"DOI:{doi}" for doi in group], fields=FIELDS)
@@ -103,7 +105,9 @@ def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]
     }
 
 
-def get_training_scores(vectors: np.ndarray, relevant: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def get_training_scores(
+    vectors: np.ndarray, relevant: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """Return the highest similarity of each paper to the other relevant and
     the other not relevant papers.
 
@@ -213,14 +217,22 @@ class SemanticFilter:
             "min_margin": self.min_margin,
         }
         (model_dir / "hyperparameters.json").write_text(json.dumps(hyperparameters, indent=2))
-        np.savez(model_dir / "vectors.npz", positive=self.positive_vectors, negative=self.negative_vectors)
+        np.savez(
+            model_dir / "vectors.npz",
+            positive=self.positive_vectors,
+            negative=self.negative_vectors,
+        )
 
     @classmethod
     def load(cls, model_dir: Path) -> "SemanticFilter":
         """Read a filter written by `save`."""
         hyperparameters = json.loads((model_dir / "hyperparameters.json").read_text())
         vectors = np.load(model_dir / "vectors.npz")
-        return cls(**hyperparameters, positive_vectors=vectors["positive"], negative_vectors=vectors["negative"])
+        return cls(
+            **hyperparameters,
+            positive_vectors=vectors["positive"],
+            negative_vectors=vectors["negative"],
+        )
 
     @classmethod
     def evaluate(cls, model_dir: Path, dois: list[str], labels: list[bool]) -> dict[str, float]:
@@ -294,6 +306,9 @@ class SemanticFilter:
             results.append(cls.evaluate(split_dir, test_dois, test_labels))
             logger.info(f"split {seed}: {results[-1]}")
         return {
-            name: (float(np.mean([r[name] for r in results])), float(np.std([r[name] for r in results])))
+            name: (
+                float(np.mean([r[name] for r in results])),
+                float(np.std([r[name] for r in results])),
+            )
             for name in results[0]
         }

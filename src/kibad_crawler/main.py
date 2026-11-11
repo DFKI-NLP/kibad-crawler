@@ -11,7 +11,7 @@ from kibad_crawler.basic_filter import (
     execute_all_search_queries,
     execute_all_search_queries_sift,
 )
-from kibad_crawler.config import MODELS_DIR, PROJ_ROOT, RAW_DATA_DIR
+from kibad_crawler.config import INTERIM_DATA_DIR, PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
     SCREENING_TABLES_DIR,
@@ -521,7 +521,7 @@ def cross_validate_semantic_filter(
     per cent of the papers and evaluate on the other 20 per cent.
 
     Output (under the project root): the filter of each split in
-    `models/semantic_filter/<table>/`, and the mean and standard deviation of
+    `data/interim/semantic_filter/<table>/`, and the mean and standard deviation of
     the metrics in `evaluation/results/semantic_filter_<table>.md`.
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
@@ -531,7 +531,7 @@ def cross_validate_semantic_filter(
     logger.info(f"{len(dois):,} screened papers, {sum(labels):,} of them relevant")
 
     results = SemanticFilter.cross_validation(
-        dois, labels, model_dir=MODELS_DIR / "semantic_filter" / table, n_splits=n_splits
+        dois, labels, model_dir=INTERIM_DATA_DIR / "semantic_filter" / table, n_splits=n_splits
     )
     rows = "\n".join(
         f"| {name} | {mean:.3f} | {std:.3f} |" for name, (mean, std) in results.items()
