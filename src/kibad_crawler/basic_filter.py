@@ -103,12 +103,15 @@ def get_papers_from_search(query: str, files_path: Path) -> list:
 
 
 def save_selected_papers(paper_ids: list, query: Query, files_path: Path, output_dir: Path):
-    """Save to disk a list of papers in JSON format.
+    """Save to disk a list of papers in JSON format using the Semantic Scholar
+    API structure and using the query name in the `query` definition for keyword
+    searches.
 
     Args:
         paper_ids (list): IDs of the papers to be saved.
         query (Query): Query to include its name to include in the JSON file.
         files_path (Path): Directory to find JSON files with paper metadata.
+        output_dir (Path): Directory to store the filtered papers metadata.
     """
     # papers
     json_files = files_path.glob("**/*.json")
@@ -153,10 +156,12 @@ def _check_papers_exist(release_id: str) -> bool:
 
 
 def load_documents_to_database_from_path(files_path: str | Path) -> CollectionBase | None:
-    """Load documents (title + abstract) to an sqlite database.
+    """Load documents (title + abstract) to an sqlite database to prepare them
+    to run keyword searches queries on the paper metadata.
 
     Args:
-        release_id (str): Release to identify the location of the papers.
+        files_path (str | Path): Path to find the metadata of papers to load
+            into the sifts database.
 
     Returns:
         (CollectionBase): Database with papers loaded.
@@ -276,12 +281,17 @@ def get_papers_from_search_with_sifts(
 
 
 def execute_all_search_queries_sift(release_id: str, release_diff: str | None = None):
-    """Run the string searches using a SQLite database with sifts.
+    """Run the string searches using a SQLite database with sifts. If only
+    `release_id` is passed it searches the papers of a single release. If
+    `release_diff` is also passed it will search the papers from the diff folder.
 
     Args:
         release_id (str): Release version from Semantic Scholar with format
             'YYYY-MM-DD'.
+        release_diff (str, Optional): Release version from Semantic Scholar to compare
+            differences with with format 'YYYY-MM-DD'.
     """
+    # Prepare input and output directories to read and save files
     if release_diff:
         files_path = Path(
             RAW_DATA_DIR
@@ -319,30 +329,11 @@ def execute_all_search_queries_sift(release_id: str, release_diff: str | None = 
         save_selected_papers(
             paper_ids=papers, query=query, files_path=files_path, output_dir=output_dir
         )
-    #     elif files_path:
-    #     output_dir = Path(files_path) / "sifts"
-    #     output_dir.mkdir(exist_ok=True, parents=True)
-    #     for query in ALL_SEARCH_QUERIES:
-    #         papers = get_papers_from_search_with_sifts(query=query, collection=collection)
-    #         save_selected_papers(
-    #             paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
-    #         )
-    # else:
-    #     collection = None
+
     if collection is None:
         logger.warning("No release nor path passed.")
         return
 
-    # Create the output directory
-    # output_dir = Path(
-    #     INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "sifts"
-    # )
-    # output_dir.mkdir(exist_ok=True, parents=True)
-    # for query in ALL_SEARCH_QUERIES:
-    #     papers = get_papers_from_search_with_sifts(query=query, collection=collection)
-    #     save_selected_papers(
-    #         paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
-    #     )
     logger.info(
         f"String searches finished. Use 'uv run kibad-crawler download-open-access-files {output_dir}' to download open-access PDF files"
     )

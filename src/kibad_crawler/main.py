@@ -363,9 +363,15 @@ def run_string_searches(
     The results (paper selection based on keyword searches) are saved to
     `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
 
+    If no release is provided it will use the latest available in the API. If
+    just one release is provided it will run the queries on that release. If two
+    releases are provided, it will apply the keyword queries on the difference
+    of the papers between the two releases.
+
     The workflow is as follows:
-    1. Given a release, it searches the paper metadata downloaded based on
-        publication venues, publication dates, and citation count.
+    1. Given a release or the a difference between release, it searches the
+        paper metadata downloaded based on publication venues, publication
+        dates, and citation count.
     2. Using all the search queries defined in `search_queries.py` it applies
         one by one to each paper.
     3. Save the papers's metadata results to
