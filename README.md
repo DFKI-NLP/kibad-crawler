@@ -312,7 +312,7 @@ docker rmi $(docker images kibad/crawler:1.0 -q) \
 # Start a new container that can run CLI commands
 docker run --name crawler \
     -itd \
-    -v ./data:/opt/kibad-crawler/data \
+    -v ./data:/opt/kibad-crawler/data:z \
     kibad/crawler:1.0
 
 # Log in to the container
@@ -330,7 +330,7 @@ docker run \
     -it \
     --rm \
     --name crawler \
-    -v ./data:/opt/kibad-crawler/data \
+    --v ./data:/opt/kibad-crawler/data:z \
     -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
     kibad/crawler:1.0 bash -c 'uv run kibad-crawler download-publication-venues'
 
@@ -339,7 +339,7 @@ docker run \
     -it \
     --rm \
     --name crawler \
-    -v ./data:/opt/kibad-crawler/data \
+    -v ./data:/opt/kibad-crawler/data:z \
     -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
     kibad/crawler:1.0 bash -c 'uv run kibad-crawler download-paper-metadata'
 
@@ -348,7 +348,7 @@ docker run \
     -it \
     --rm \
     --name crawler \
-    -v ./data:/opt/kibad-crawler/data \
+    -v ./data:/opt/kibad-crawler/data:z \
     -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
     kibad/crawler:1.0 bash -c 'uv run kibad-crawler run-string-searches'
 ```
