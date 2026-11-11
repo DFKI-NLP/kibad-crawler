@@ -11,10 +11,12 @@ from kibad_crawler.basic_filter import (
     execute_all_search_queries,
     execute_all_search_queries_sift,
 )
-from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
+from kibad_crawler.config import MODELS_DIR, PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
+    SCREENING_TABLES_DIR,
     get_reference_papers,
+    read_screening_tables,
 )
 from kibad_crawler.evaluation.search_results import (
     build_collection,
@@ -28,6 +30,7 @@ from kibad_crawler.papers import (
     get_publication_venue_ids,
 )
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
+from kibad_crawler.semantic_filter import SemanticFilter
 from kibad_crawler.semantic_scholar import datasets
 from kibad_crawler.utils import get_file_name
 
@@ -492,3 +495,54 @@ def evaluate_search_queries(
             encoding="utf-8",
         )
         logger.info(f"results of {tables.name} saved to '{output_path}'")
+
+
+@app.command()
+def cross_validate_semantic_filter(
+    table: Annotated[
+        str,
+        typer.Option(
+            help="Name of the screening tables in `SCREENING_TABLES`, e.g. 'ecosystem_services_habitats'."
+        ),
+    ],
+    n_splits: Annotated[int, typer.Option(help="Number of random 80:20 splits.")] = 5,
+):
+    """Train and evaluate the semantic filter on the screened papers of one
+    screening table.
+
+    Workflow:
+
+    1. Read the papers of the table that have a DOI and a screening decision.
+
+    2. Request their SPECTER2 embeddings from the Academic Graph API, reusing
+    the ones in `data/interim/semantic_filter/embeddings.json`.
+
+    3. For each of --n-splits random splits, estimate the hyperparameters on 80
+    per cent of the papers and evaluate on the other 20 per cent.
+
+    Output (under the project root): the filter of each split in
+    `models/semantic_filter/<table>/`, and the mean and standard deviation of
+    the metrics in `evaluation/results/semantic_filter_<table>.md`.
+    """
+    tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
+    df = read_screening_tables(SCREENING_TABLES_DIR, tables)
+    df = df[df["included"].notna()].drop_duplicates(subset=["doi"])
+    dois, labels = df["doi"].tolist(), (df["included"] == 1).tolist()
+    logger.info(f"{len(dois):,} screened papers, {sum(labels):,} of them relevant")
+
+    results = SemanticFilter.cross_validation(
+        dois, labels, model_dir=MODELS_DIR / "semantic_filter" / table, n_splits=n_splits
+    )
+    rows = "\n".join(
+        f"| {name} | {mean:.3f} | {std:.3f} |" for name, (mean, std) in results.items()
+    )
+    output_path = PROJ_ROOT / "evaluation" / "results" / f"semantic_filter_{table}.md"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        f"# Semantic filter: {table}\n\n"
+        f"{len(dois):,} screened papers, {sum(labels):,} of them relevant, "
+        f"{n_splits} random 80:20 splits.\n\n"
+        f"| metric | mean | standard deviation |\n|---|---|---|\n{rows}\n",
+        encoding="utf-8",
+    )
+    logger.info(f"results saved to '{output_path}'")
