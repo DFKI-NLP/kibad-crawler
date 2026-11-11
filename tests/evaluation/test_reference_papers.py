@@ -14,12 +14,15 @@ TABLES = reference_papers.ScreeningTables("test", ["first.xlsx", "second.csv"], 
 def screening_tables(tmp_path: Path, monkeypatch) -> Path:
     """Write two screening tables that share a paper, and one row without DOI.
     The second one has the free text decisions and the column `DOI` of the
-    Soil tables."""
+    Soil tables, and a paper labelled with another chapter that is left out."""
     pd.DataFrame({"doi": [" 10.1/A ", "10.1/b", None], "included": [1, None, 0]}).to_excel(
         tmp_path / "first.xlsx", index=False
     )
     pd.DataFrame(
-        {"DOI": ["10.1/b", "10.1/c"], "Relevant (Ja/Nein/Unsicher)": ["nein - nur physik", None]}
+        {
+            "DOI": ["10.1/b", "10.1/c", "10.1/d"],
+            "Relevant (Ja/Nein/Unsicher)": ["nein - nur physik", None, "Agrar"],
+        }
     ).to_csv(tmp_path / "second.csv", index=False)
     monkeypatch.setattr(reference_papers, "DELAY_BETWEEN_BATCHES", 0)
     return tmp_path
@@ -56,14 +59,23 @@ def test_read_screening_tables(screening_tables):
         ("Nei", 0),
         ("no", 0),
         ("nicht relevant", 0),
-        ("Treiber", None),
         (None, None),
+        (" ", None),
     ],
 )
 def test_get_decisions(label, expected):
     decisions = reference_papers.get_decisions(pd.DataFrame({"Relevant": [label]}))
 
     assert decisions.fillna(-1).tolist() == [-1 if expected is None else expected]
+
+
+def test_get_decisions_leaves_out_other_chapters():
+    df = pd.DataFrame({"Relevant": ["Ja", "Treiber", "Nein", "Wald", None]})
+
+    decisions = reference_papers.get_decisions(df)
+
+    assert decisions.index.tolist() == [0, 2, 4]
+    assert decisions.fillna(-1).tolist() == [1, 0, -1]
 
 
 def test_resolve_dois(monkeypatch):

@@ -22,7 +22,7 @@ from kibad_crawler.semantic_scholar import academic_graph
 from kibad_crawler.utils import chunker
 
 SCREENING_TABLES_DIR = EXTERNAL_DATA_DIR / "screening_tables"
-# first word of a free text decision, anything else counts as not screened
+# first word of a free text decision
 DECISIONS = {"ja": 1, "relevant": 1, "nein": 0, "nei": 0, "no": 0, "nicht": 0}
 FIELDS = "paperId,publicationVenue"
 DELAY_BETWEEN_BATCHES = 3
@@ -49,8 +49,19 @@ SCREENING_TABLES = [
         ],
         ["Q1", "Q2", "Q3", "Q4"],
     ),
+    ScreeningTables("soil_trends", ["Boden-Trend.xlsx"], ["Q5"]),
     ScreeningTables("soil_drivers", ["Boden-Treiber.xlsx"], ["Q6"]),
     ScreeningTables("soil_measures", ["Boden-Maßnahmen.xlsx"], ["Q7"]),
+    ScreeningTables(
+        "agricultural_drivers",
+        ["Agrar- und Offenland/asreview_result_agrar-treiber-final2.xlsx"],
+        ["Q10"],
+    ),
+    ScreeningTables(
+        "agricultural_ecosystem_services",
+        ["Agrar- und Offenland/asreview_result_agrar-ösl-final2.xlsx"],
+        ["Q12"],
+    ),
     ScreeningTables("coast_trends", ["Küste/asreview_result_trends_AdrianDoro.xlsx"], ["Q17"]),
     ScreeningTables("ecosystem_services_cross_section", ["ÖSL-Querschnitt.xlsx"], ["Q25"]),
     ScreeningTables("ecosystem_services_habitats", ["ÖSL-lebensräume.xlsx"], ["Q26"]),
@@ -58,20 +69,27 @@ SCREENING_TABLES = [
 
 
 def get_decisions(df: pd.DataFrame) -> pd.Series:
-    """Return the screening decision of each row of a screening table.
+    """Return the screening decision of the rows of a screening table.
+
+    A free text decision that is neither yes nor no names another chapter of
+    the literature review, for example "Treiber" in the Soil trends table.
+    These rows are left out, so the result can have fewer rows than `df`.
 
     Args:
         df (pd.DataFrame): Screening table with an `included` column or a
             free text column whose name starts with `Relevant`.
 
     Returns:
-        pd.Series: 1 for relevant, 0 for not relevant, empty otherwise.
+        pd.Series: 1 for relevant, 0 for not relevant, empty for not
+            screened, with the index of the rows that are kept.
     """
     if "included" in df:
         return df["included"]
     column = next(name for name in df.columns if name.startswith("Relevant"))
-    first_words = df[column].astype(str).str.strip().str.lower().str.split(r"[\s\\-]+").str[0]
-    return first_words.map(DECISIONS)
+    labels = df[column].astype("string").str.strip().str.lower()
+    decisions = labels.str.split(r"[\s\\-]+").str[0].map(DECISIONS)
+    not_screened = labels.fillna("") == ""
+    return decisions[not_screened | decisions.notna()]
 
 
 def read_screening_tables(tables_dir: Path, file_names: list[str]) -> pd.DataFrame:
@@ -91,10 +109,11 @@ def read_screening_tables(tables_dir: Path, file_names: list[str]) -> pd.DataFra
         df = pd.read_csv(path) if name.endswith(".csv") else pd.read_excel(path, sheet_name=0)
         # the Soil tables name the column `DOI`
         doi_column = next(column for column in df.columns if column.lower() == "doi")
+        decisions = get_decisions(df)
         df = pd.DataFrame(
             {
-                "doi": df[doi_column].astype(str).str.strip().str.lower(),
-                "included": get_decisions(df),
+                "doi": df.loc[decisions.index, doi_column].astype(str).str.strip().str.lower(),
+                "included": decisions,
                 "source_file": name,
             }
         )
