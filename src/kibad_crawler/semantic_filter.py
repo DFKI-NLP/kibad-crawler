@@ -90,7 +90,8 @@ def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]
         labels (np.ndarray): True for the papers screened as relevant.
 
     Returns:
-        dict[str, float]: The metrics and the accuracy of keeping every paper.
+        dict[str, float]: The metrics and, as baselines, the accuracy of
+            keeping every paper and of keeping none.
     """
     true_positives = (predictions & labels).sum()
     precision = true_positives / predictions.sum() if predictions.any() else 0.0
@@ -102,6 +103,7 @@ def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]
         "recall": float(recall),
         "f1": float(f1),
         "accuracy_keep_all": float(labels.mean()),
+        "accuracy_keep_none": float(1 - labels.mean()),
     }
 
 

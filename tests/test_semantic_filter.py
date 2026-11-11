@@ -67,15 +67,18 @@ def test_get_vectors(embeddings):
 
 def test_get_metrics():
     predictions = np.array([True, True, False, False])
-    labels = np.array([True, False, True, False])
+    labels = np.array([True, False, True, True])
 
-    assert semantic_filter.get_metrics(predictions, labels) == {
-        "accuracy": 0.5,
-        "precision": 0.5,
-        "recall": 0.5,
-        "f1": 0.5,
-        "accuracy_keep_all": 0.5,
-    }
+    assert semantic_filter.get_metrics(predictions, labels) == pytest.approx(
+        {
+            "accuracy": 0.25,
+            "precision": 0.5,
+            "recall": 1 / 3,
+            "f1": 0.4,
+            "accuracy_keep_all": 0.75,
+            "accuracy_keep_none": 0.25,
+        }
+    )
 
 
 def test_get_training_scores():
@@ -171,6 +174,7 @@ def test_cross_validation(embeddings, tmp_path):
         "recall",
         "f1",
         "accuracy_keep_all",
+        "accuracy_keep_none",
         "skipped",
     }
     assert all(len(value) == 2 for value in results.values())
