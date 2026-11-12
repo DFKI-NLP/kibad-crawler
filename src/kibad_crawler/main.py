@@ -20,7 +20,7 @@ from kibad_crawler.evaluation.search_results import (
 )
 from kibad_crawler.papers import (
     PaperSearch,
-    download_pdf_files,
+    download_open_access_pdfs,
     get_papers_from_files,
     get_publication_venue_ids,
 )
@@ -445,7 +445,7 @@ def download_open_access_files(
     """
 
     logger.info(f"Searching for paper metadata in '{input_path}'")
-    download_pdf_files(input_path=Path(input_path))
+    download_open_access_pdfs(input_path=Path(input_path))
 
 
 if __name__ == "__main__":

@@ -272,7 +272,6 @@ def download_open_access_pdf(
     Returns:
         Path: Path to the stored file.
     """
-    # FIXME 403 responses from MDPI website, try playwrith or curff
     path.mkdir(parents=True, exist_ok=True)
     out_path = path / file_name
 
@@ -301,7 +300,7 @@ def download_open_access_pdf(
     return out_path
 
 
-def download_pdf_files(input_path: Path):
+def download_open_access_pdfs(input_path: Path):
     """Handles the downloading of all the papers from in a directory. It
     expects JSON files with semantic scholar structure including columns such
     as: ["paperId", "openAccessPdf.url", "isOpenAccess", "openAccessPdf.url"]
