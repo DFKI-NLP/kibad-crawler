@@ -96,14 +96,6 @@ known_first_party = ["kibad_crawler"]
 force_sort_within_sections = true
 
 [tool.flake8]
-exclude = [
-    ".git",
-    "notebooks",
-    "models",
-    "data",
-    "logs",
-    ".src/kibad_crawler/string_queries",
-]
 ignore = [
     "E203",
     "E266",
@@ -117,10 +109,18 @@ ignore = [
     "E741",
 ]
 max-line-length = 99
+exclude = [
+    ".git",
+    "notebooks",
+    "models",
+    "data",
+    "logs",
+    ".src/kibad_crawler/search_queries",
+]
 
 [tool.codespell]
-ignore-words-list = "hist"
 skip = "logs/**,data/**,tests/fixtures/**.json,tests/fixtures/**.jsonl,*.ipynb,src/kibad_crawler/search_queries*,notebooks/query_strings.yml,docs/SEARCH_QUERIES.md,src/kibad_crawler/search_queries*"
+ignore-words-list = "hist"
 
 # Bandit (read by pre-commit bandit with -c pyproject.toml)
 [tool.bandit]

@@ -14,7 +14,7 @@ import requests
 from retry import retry
 from tqdm import tqdm
 
-from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, PROCESSED_DATA_DIR, RAW_DATA_DIR
+from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, RAW_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
 from kibad_crawler.utils import (
     chunker,
@@ -215,9 +215,7 @@ def get_abstracts(file_path: Path, overwrite: bool = False):
     if stored_batches and not overwrite:
         logger.info(f"Skipping {len(stored_batches):,} batches already stored in {json_path}")
 
-    logger.info(
-        f"Downloading abstracts in batches of {MAX_NUM_BATCH_PAPERS} papers to {json_path} ..."
-    )
+    logger.info(f"Downloading abstracts to {json_path} ...")
     for i, group in tqdm(enumerate(groups), total=len(groups), desc="Downloading abstracts"):
         json_file = json_path / f"papers-metadata-{i}.json"
         if i in stored_batches and not overwrite:
@@ -230,7 +228,6 @@ def get_abstracts(file_path: Path, overwrite: bool = False):
         tmp_file = json_file.with_name(f"{json_file.name}.tmp")
         with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(response_batch, f)
-
         tmp_file.replace(json_file)
 
 

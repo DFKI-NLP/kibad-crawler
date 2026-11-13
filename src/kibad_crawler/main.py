@@ -1,13 +1,16 @@
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from loguru import logger
 from rich import print as print_rich
 import typer
 
-from kibad_crawler.basic_filter import execute_all_search_queries_sift
+from kibad_crawler.basic_filter import (
+    execute_all_search_queries,
+    execute_all_search_queries_sift,
+)
 from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
@@ -21,6 +24,7 @@ from kibad_crawler.evaluation.search_results import (
 from kibad_crawler.papers import (
     PaperSearch,
     download_open_access_pdfs,
+    get_papers,
     get_papers_from_files,
     get_publication_venue_ids,
 )
@@ -350,12 +354,12 @@ def run_string_searches(
             help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
         ),
     ] = None,
-    release_diff: Annotated[
-        str | None,
+    method: Annotated[
+        Literal["sifts", "plain"],
         typer.Option(
-            help="Release version from Semantic Scholar to compare with, format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
+            help="Search strings with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
         ),
-    ] = None,
+    ] = "sifts",
 ):
     """
     Select papers based on keyword search. This filters a Semantic Scholar release
@@ -363,15 +367,9 @@ def run_string_searches(
     The results (paper selection based on keyword searches) are saved to
     `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
 
-    If no release is provided it will use the latest available in the API. If
-    just one release is provided it will run the queries on that release. If two
-    releases are provided, it will apply the keyword queries on the difference
-    of the papers between the two releases.
-
     The workflow is as follows:
-    1. Given a release or the a difference between release, it searches the
-        paper metadata downloaded based on publication venues, publication
-        dates, and citation count.
+    1. Given a release, it searches the paper metadata downloaded based on
+        publication venues, publication dates, and citation count.
     2. Using all the search queries defined in `search_queries.py` it applies
         one by one to each paper.
     3. Save the papers's metadata results to
@@ -383,7 +381,10 @@ def run_string_searches(
     Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
     """
     release_id = release or datasets.get_available_releases()[-1]
-    execute_all_search_queries_sift(release_id=release_id, release_diff=release_diff)
+    if method == "plain":
+        execute_all_search_queries(release_id=release_id)
+    elif method == "sifts":
+        execute_all_search_queries_sift(release_id=release_id)
 
 
 @app.command()
@@ -423,29 +424,23 @@ def string_search_info():
 @app.command()
 def download_open_access_files(
     input_path: Annotated[
-        str,
-        typer.Argument(help="Path to JSON files with Semantic Scholar paper metadata."),
+        Path,
+        typer.Argument(
+            help="Directory containing JSON files with Semantic Scholar paper metadata."
+        ),
     ],
 ):
-    """Download open access papers. This command collects all the open access
-    URL from the given release date and proceeds to download the PDF version of
-    the papers.
+    """Download open-access PDFs for the papers listed in a metadata directory.
 
-    If a `release_diff` is provided, it will search the metadata of the papers
-    in the corresponding folder of the diff.
+    Run download-paper-metadata and then run-string-searches to select papers
+    by title and abstract. Pass the search-results directory to this command.
+    Other Semantic Scholar metadata directories with paper IDs and open-access
+    PDF URLs can also be used.
 
-    Before running `uv run kibad-crawler download_open_access_files` the metadata
-    and the results from the keyword searches must have been completed. Run the
-    following commands to download the paper's metadata and filter them with
-    the keyword searches.
-
-    uv run kibad-crawler download-paper-metadata            # 1) download metadata of the papers
-    uv run kibad-crawler run-string-searches                # 2) applies keyword searches
-    uv run kibad-crawler download_open_access_files <PATH>  # 3) download the open access PDF files
+    PDFs are saved in the open_access_pdf subdirectory of the input directory.
     """
-
     logger.info(f"Searching for paper metadata in '{input_path}'")
-    download_open_access_pdfs(input_path=Path(input_path))
+    download_open_access_pdfs(input_path=input_path)
 
 
 if __name__ == "__main__":

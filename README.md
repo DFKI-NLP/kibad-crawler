@@ -84,8 +84,8 @@ uv run kibad-crawler download-paper-metadata-diff --help
 uv run kibad-crawler download-paper-metadata-diff --start-release 2026-09-01
 
 uv run kibad-crawler run-string-searches --help
-uv run kibad-crawler run-string-searches --release YYYY-MM-DD
-uv run kibad-crawler run-string-searches --release YYYY-MM-DD --release-diff YYYY-MM-DD
+uv run kibad-crawler run-string-searches --method sifts
+uv run kibad-crawler run-string-searches --method plain
 
 uv run kibad-crawler string-search-info --help
 uv run kibad-crawler string-search-info
@@ -93,6 +93,14 @@ uv run kibad-crawler string-search-info
 uv run kibad-crawler download-open-access-files --help
 uv run kibad-crawler download-open-access-files <PATH_TO_RESULTS_FROM_STRING_SEARCH>
 ```
+
+## Open-access PDFs
+
+Pass the directory of JSON results from `run-string-searches` to download
+open-access PDFs for the papers selected by keyword search. The command reads
+the paper IDs and PDF URLs from the JSON and saves the files under
+`open_access_pdf/` within that directory. It also accepts other directories
+containing compatible Semantic Scholar metadata.
 
 ## Download algorithm
 

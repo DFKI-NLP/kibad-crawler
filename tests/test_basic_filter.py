@@ -128,15 +128,10 @@ def test_get_papers_from_search_no_matches(paper_files, tmp_path, with_papers):
 @pytest.mark.parametrize("paper_ids", [["paper-1", "paper-3", "unknown"], []])
 def test_save_selected_papers(paper_files, queries, tmp_path, paper_ids):
     """Save only selected records from every file, preserving all metadata."""
-    files_path = tmp_path / "papers"
-    files_path.mkdir()
-    with open(files_path / "papers-metadata-0.json", "w", encoding="utf-8") as f:
-        json.dump(PAPERS, f)
-
     output_dir = tmp_path / "selected"
     output_dir.mkdir()
 
-    basic_filter.save_selected_papers(paper_ids, queries[0], files_path, output_dir)
+    basic_filter.save_selected_papers(paper_ids, queries[0], RELEASE_ID, output_dir)
 
     output_file = output_dir / "Q1 - German forests.json"
     saved = json.loads(output_file.read_text(encoding="utf-8"))
@@ -156,10 +151,42 @@ def test_check_papers_exist(data_dirs, exists):
     assert basic_filter._check_papers_exist("another-release") is False
 
 
+def test_execute_all_search_queries(paper_files, data_dirs, queries, monkeypatch):
+    """Create the output directory and save matching records for every query."""
+    monkeypatch.setattr(basic_filter, "ALL_SEARCH_QUERIES", queries)
+
+    basic_filter.execute_all_search_queries(RELEASE_ID)
+
+    _, interim_dir = data_dirs
+    output_dir = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / "papers"
+    output_dir /= "query_search"
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "Q1 - German forests.json",
+        "Q2 - Canadian forests.json",
+    ]
+    for query, expected in zip(queries, [PAPERS[:2], [PAPERS[2]]], strict=True):
+        saved = json.loads((output_dir / f"{query.id} - {query.name}.json").read_text())
+        assert sorted(saved, key=lambda paper: paper["paperId"]) == expected
+
+
+def test_execute_search_query(paper_files, data_dirs, queries):
+    """Execute a single query and save its full matching paper records."""
+    basic_filter.execute_search_query(RELEASE_ID, queries[1])
+
+    _, interim_dir = data_dirs
+    output_dir = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / "papers"
+    output_dir /= "query_search"
+    assert [path.name for path in output_dir.iterdir()] == ["Q2 - Canadian forests.json"]
+    assert json.loads((output_dir / "Q2 - Canadian forests.json").read_text()) == [PAPERS[2]]
+
+
 @pytest.mark.parametrize(
     "operation",
     [
+        "execute_all_search_queries",
+        "execute_search_query",
         "load_documents_to_database",
+        "execute_all_search_queries_sift",
     ],
 )
 def test_missing_release(data_dirs, queries, monkeypatch, operation):

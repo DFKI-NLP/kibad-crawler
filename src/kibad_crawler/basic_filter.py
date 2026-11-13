@@ -102,18 +102,17 @@ def get_papers_from_search(query: str, files_path: Path) -> list:
     return paper_filter
 
 
-def save_selected_papers(paper_ids: list, query: Query, files_path: Path, output_dir: Path):
-    """Save to disk a list of papers in JSON format using the Semantic Scholar
-    API structure and using the query name in the `query` definition for keyword
-    searches.
+def save_selected_papers(paper_ids: list, query: Query, release_id: str, output_dir: Path):
+    """Save to disk a list of papers in JSON format.
 
     Args:
         paper_ids (list): IDs of the papers to be saved.
         query (Query): Query to include its name to include in the JSON file.
-        files_path (Path): Directory to find JSON files with paper metadata.
-        output_dir (Path): Directory to store the filtered papers metadata.
+        release_id (str): Release to find the directory with papers to execute
+            the queries.
     """
     # papers
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
     json_files = files_path.glob("**/*.json")
 
     # Filter papers by paper id
@@ -128,8 +127,9 @@ def save_selected_papers(paper_ids: list, query: Query, files_path: Path, output
         output_dir / f"{query.id} - {query.name}.json", index=False, orient="records"
     )
 
-    output_file_path = output_dir / f"{query.id} - {query.name}.json"
-    logger.info(f'{len(paper_ids):,} "{query.name}" papers saved to "{output_file_path}"')
+    logger.info(
+        f'{len(paper_ids):,} "{query.name}" papers saved to "{output_dir / f"{query.id} {query.name}.json"}"'
+    )
 
 
 def _check_papers_exist(release_id: str) -> bool:
@@ -152,56 +152,54 @@ def _check_papers_exist(release_id: str) -> bool:
     return True
 
 
-# sifts
-
-
-def load_documents_to_database_from_path(files_path: str | Path) -> CollectionBase | None:
-    """Load documents (title + abstract) to an sqlite database to prepare them
-    to run keyword searches queries on the paper metadata.
+def execute_all_search_queries(release_id: str):
+    """Execute all the search queries that are in the system.
 
     Args:
-        files_path (str | Path): Path to find the metadata of papers to load
-            into the sifts database.
-
-    Returns:
-        (CollectionBase): Database with papers loaded.
+        release_id (str): Release to find the directory where the paper's
+            metadata is stored.
     """
-    files_path = Path(files_path)
-    if not files_path.exists():
-        logger.warning(f"Directory {files_path} does not exists.")
-    json_files = list(files_path.glob("**/*.json"))
-    logger.info(f"Processing files in '{files_path}'")
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
+    if not _check_papers_exist(release_id=release_id):
+        return
 
-    database_path = files_path / "database"
-    database_path.mkdir(parents=True, exist_ok=True)
-    if (database_path / "papers.db").exists():
-        (database_path / "papers.db").unlink()
+    # Create the output directory
+    output_dir = Path(
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
+    )
+    output_dir.mkdir(exist_ok=True, parents=True)
 
-    collection = sifts.Collection(
-        db_url=f"sqlite:///{database_path / 'papers.db'}",
-        name="papers",
+    for query in ALL_SEARCH_QUERIES:
+        papers = get_papers_from_search(query=query.query, files_path=files_path)
+        save_selected_papers(
+            paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
+        )
+
+
+def execute_search_query(release_id: str, query: Query):
+    """Execute a single search query on the papers of a given release.
+
+    Args:
+        release_id (str): Release to find the papers.
+        query (Query): Query object to search in all the papers.
+    """
+    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
+    if not _check_papers_exist(release_id=release_id):
+        return
+
+    # Create the output directory
+    output_dir = Path(
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
+    )
+    output_dir.mkdir(exist_ok=True, parents=True)
+
+    papers = get_papers_from_search(query=query.query, files_path=files_path)
+    save_selected_papers(
+        paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
     )
 
-    start = pendulum.now()
-    total_papers = 0
-    for json_file in tqdm(json_files, total=len(json_files)):
-        df = pd.read_json(json_file)
-        df = df[["paperId", "title", "abstract"]]
-        total_papers += df.shape[0]
 
-        for _, r in df.iterrows():
-            text = f"{r['title'].strip()} {r['abstract'].strip() if r['abstract'] else ""}"
-
-            collection.add(
-                contents=[text],
-                ids=[r["paperId"]],
-            )
-    end = pendulum.now()
-    duration = end - start
-    logger.info(
-        f"{total_papers:,} papers loaded to database '{database_path / "papers.db"}' in {duration.in_words()}"
-    )
-    return collection
+# sifts
 
 
 def load_documents_to_database(release_id: str) -> CollectionBase | None:
@@ -280,60 +278,25 @@ def get_papers_from_search_with_sifts(
     return paper_ids
 
 
-def execute_all_search_queries_sift(release_id: str, release_diff: str | None = None):
-    """Run the string searches using a SQLite database with sifts. If only
-    `release_id` is passed it searches the papers of a single release. If
-    `release_diff` is also passed it will search the papers from the diff folder.
+def execute_all_search_queries_sift(release_id: str):
+    """Run the string searches using a SQLite database with sifts.
 
     Args:
         release_id (str): Release version from Semantic Scholar with format
             'YYYY-MM-DD'.
-        release_diff (str, Optional): Release version from Semantic Scholar to compare
-            differences with with format 'YYYY-MM-DD'.
     """
-    # Prepare input and output directories to read and save files
-    if release_diff:
-        files_path = Path(
-            RAW_DATA_DIR
-            / "semantic_scholar"
-            / "release"
-            / release_id
-            / "diffs"
-            / f"{release_diff}_to_{release_id}"
-            / "papers"
-        )
-        output_dir = Path(
-            INTERIM_DATA_DIR
-            / "semantic_scholar"
-            / "release"
-            / release_id
-            / "diffs"
-            / f"{release_diff}_to_{release_id}"
-            / "papers"
-            / "sifts"
-        )
-    else:
-        files_path = Path(
-            RAW_DATA_DIR / "semantic_scholar" / "release" / f"{release_id}" / "papers"
-        )
-        output_dir = Path(
-            INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "sifts"
-        )
-
-    collection = load_documents_to_database_from_path(files_path=files_path)
-
-    # Create the output directory
-    output_dir.mkdir(exist_ok=True, parents=True)
-    for query in ALL_SEARCH_QUERIES:
-        papers = get_papers_from_search_with_sifts(query=query, collection=collection)  # type: ignore
-        save_selected_papers(
-            paper_ids=papers, query=query, files_path=files_path, output_dir=output_dir
-        )
-
+    # Creates and load the database with papers if they exist
+    collection = load_documents_to_database(release_id=release_id)
     if collection is None:
-        logger.warning("No release nor path passed.")
         return
 
-    logger.info(
-        f"String searches finished. Use 'uv run kibad-crawler download-open-access-files {output_dir}' to download open-access PDF files"
+    # Create the output directory
+    output_dir = Path(
+        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "sifts"
     )
+    output_dir.mkdir(exist_ok=True, parents=True)
+    for query in ALL_SEARCH_QUERIES:
+        papers = get_papers_from_search_with_sifts(query=query, collection=collection)
+        save_selected_papers(
+            paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
+        )
