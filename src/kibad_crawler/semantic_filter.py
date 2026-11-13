@@ -184,9 +184,20 @@ class SemanticFilter:
         Returns:
             SemanticFilter: Filter with the best hyperparameters and the
                 embeddings of the papers as examples.
+
+        Raises:
+            ValueError: If either class has fewer than two papers with embeddings.
         """
         vectors, available = get_vectors(dois)
         relevant = np.array(labels, dtype=bool)[available]
+        n_relevant = int(relevant.sum())
+        n_irrelevant = relevant.size - n_relevant
+        if min(n_relevant, n_irrelevant) < 2:
+            raise ValueError(
+                "Training requires at least two relevant and two irrelevant papers "
+                f"with embeddings. Found {n_relevant} relevant and {n_irrelevant} irrelevant."
+            )
+
         vectors = normalize(vectors)
         positive_scores, negative_scores = get_training_scores(vectors, relevant)
 
@@ -319,7 +330,11 @@ class SemanticFilter:
                 dois, labels, seed=seed
             )
             split_dir = model_dir / f"split_{seed}"
-            cls.train(train_dois, train_labels, objective=objective).save(split_dir)
+            try:
+                model = cls.train(train_dois, train_labels, objective=objective)
+            except ValueError as error:
+                raise ValueError(f"Training failed for split {seed}. {error}") from error
+            model.save(split_dir)
             results.append(cls.evaluate(split_dir, test_dois, test_labels))
             logger.info(f"split {seed}: {results[-1]}")
         return {
