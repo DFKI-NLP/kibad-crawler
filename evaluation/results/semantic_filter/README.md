@@ -20,9 +20,9 @@ keeps.
 Each objective used five random 80:20 train/test splits per table, with seeds
 0 through 4. The tables show means across the held-out splits. The linked
 reports give mean and standard deviation for accuracy, precision, recall, and
-F1 for the filter and all three baselines. All methods are scored on the
-held-out papers with embeddings. Coverage is the fraction of all held-out
-papers with an embedding.
+F1 for the trained filter (labeled `trained`) and all three baselines.
+All methods are scored on the held-out papers with embeddings. Coverage is
+the fraction of all held-out papers with an embedding.
 
 - **Keep all** keeps every scorable paper.
 - **Keep none** rejects every scorable paper.

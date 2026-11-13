@@ -241,7 +241,7 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
             "recall": (0.6, 0.0),
             "f1": (2 / 3, 0.0),
         }
-        return {"coverage": (0.9, 0.025), "metrics": {"random": metrics}}
+        return {"coverage": (0.9, 0.025), "metrics": {"trained": metrics, "random": metrics}}
 
     monkeypatch.setattr(main.SemanticFilter, "cross_validation", fake_cross_validation)
     monkeypatch.setattr(main, "INTERIM_DATA_DIR", tmp_path / "interim")
@@ -270,5 +270,6 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
     report = results_dir / "semantic_filter" / "ecosystem_services_habitats_f1.md"
     contents = report.read_text()
     assert "Training maximized `f1`." in contents
+    assert "| trained | 0.800 ± 0.050 |" in contents
     assert "| random | 0.800 ± 0.050 | 0.750 ± 0.000 | 0.600 ± 0.000 | 0.667 ± 0.000 |" in contents
     assert "0.900 ± 0.025" in contents

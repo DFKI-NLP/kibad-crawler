@@ -370,7 +370,7 @@ class SemanticFilter:
             random_kept[rng.choice(kept.size, size=int(kept.sum()), replace=False)] = True
             results.append(
                 {
-                    "filter": get_metrics(kept, scorable_labels),
+                    "trained": get_metrics(kept, scorable_labels),
                     "keep_all": get_metrics(np.ones_like(kept), scorable_labels),
                     "keep_none": get_metrics(np.zeros_like(kept), scorable_labels),
                     "random": get_metrics(random_kept, scorable_labels),

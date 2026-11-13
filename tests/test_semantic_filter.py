@@ -220,7 +220,7 @@ def test_cross_validation(embeddings, tmp_path):
     results = SemanticFilter.cross_validation(DOIS, LABELS, tmp_path, n_splits=3)
 
     assert results["coverage"] == (1.0, 0.0)
-    assert set(results["metrics"]) == {"filter", "keep_all", "keep_none", "random"}
+    assert set(results["metrics"]) == {"trained", "keep_all", "keep_none", "random"}
     for metrics in results["metrics"].values():
         assert set(metrics) == {"accuracy", "precision", "recall", "f1"}
         assert all(len(value) == 2 for value in metrics.values())
@@ -242,7 +242,7 @@ def test_cross_validation_scores_baselines_on_scorable_papers(monkeypatch, tmp_p
 
     assert results["coverage"] == (0.8, 0.0)
     assert results["metrics"] == {
-        "filter": {
+        "trained": {
             "accuracy": (1.0, 0.0),
             "precision": (1.0, 0.0),
             "recall": (1.0, 0.0),
