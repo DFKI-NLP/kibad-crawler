@@ -5,14 +5,24 @@ import gzip
 import json
 import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from loguru import logger
 import pandas as pd
+from pypdf import PdfReader
+from pypdf.errors import PdfReadError
+import requests
+from retry import retry
 from tqdm import tqdm
 
 from kibad_crawler.config import MAX_NUM_BATCH_PAPERS, RAW_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph, datasets
-from kibad_crawler.utils import chunker, get_file_name, get_issn_codes
+from kibad_crawler.utils import (
+    chunker,
+    get_file_name,
+    get_human_readable_size,
+    get_issn_codes,
+)
 
 
 @dataclass
@@ -220,3 +230,137 @@ def get_abstracts(file_path: Path, overwrite: bool = False):
         with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(response_batch, f)
         tmp_file.replace(json_file)
+
+
+def _is_valid_pdf(pdf_path: Path) -> bool:
+    """Check whether pypdf can open a downloaded PDF.
+
+    Args:
+        pdf_path: Path to the file to check.
+
+    Returns:
+        True if pypdf opens the file, or False if it raises PdfReadError.
+
+    Raises:
+        OSError: If the file cannot be accessed.
+    """
+    try:
+        _ = PdfReader(pdf_path)
+    except PdfReadError:
+        return False
+    else:
+        return True
+
+
+@retry(delay=3, tries=3)
+def download_open_access_pdf(
+    url: str,
+    path: Path,
+    file_name: str,
+    chunk_size: int = 8 * 1024 * 1024,
+    overwrite: bool = False,
+) -> Path | None:
+    """Download and validate an open-access PDF before saving it.
+
+    Stream the response to a temporary file in the destination directory and
+    move it into place after validation. Reuse a valid existing file unless
+    overwrite is enabled.
+
+    Args:
+        url: URL of the PDF to download.
+        path: Destination directory, created if necessary.
+        file_name: Filename to use in the destination directory.
+        chunk_size: Number of bytes to request per streamed chunk. Defaults to
+            8 MiB.
+        overwrite: Whether to replace an existing valid PDF. Defaults to False.
+
+    Returns:
+        Path to the new or reused PDF, or None if the server returns HTTP 403
+        or pypdf rejects the downloaded file.
+
+    Raises:
+        requests.exceptions.RequestException: If a request or transfer fails after
+            retries.
+        OSError: If accessing or writing a file fails after retries.
+    """
+    path.mkdir(parents=True, exist_ok=True)
+    out_path = path / file_name
+
+    if not overwrite and out_path.exists() and _is_valid_pdf(out_path):
+        logger.info(f"{file_name} - already downloaded")
+        return out_path
+
+    logger.info(f"{file_name} - downloading '{url}' -> '{out_path}'")
+    with requests.get(url, stream=True, allow_redirects=True, timeout=60) as response:
+        if response.status_code == 403:
+            logger.warning(f"{file_name} - HTTP 403 for '{url}'")
+            return None
+        response.raise_for_status()
+
+        tmp_file = NamedTemporaryFile(
+            dir=path, prefix=f".{file_name}.", suffix=".tmp", delete=False
+        )
+        tmp_path = Path(tmp_file.name)
+        try:
+            with tmp_file:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    tmp_file.write(chunk)
+            if not _is_valid_pdf(tmp_path):
+                logger.warning(f"{file_name} - response from '{url}' is not a valid PDF")
+                return None
+            tmp_path.replace(out_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    logger.info(f"{file_name} - downloaded {get_human_readable_size(out_path.stat().st_size)}")
+    return out_path
+
+
+def download_open_access_pdfs(input_path: Path):
+    """Download open-access PDFs listed in Semantic Scholar JSON metadata.
+
+    Skip records without a paper ID or PDF URL and records whose isOpenAccess
+    flag is false or missing. Try each distinct URL for a paper until a PDF
+    is available. Save one file per paper as open_access_pdf/<paperId>.pdf
+    within the input directory.
+
+    Args:
+        input_path: Directory to search recursively for JSON files. Each file
+            must contain an array of Semantic Scholar paper records with
+            paperId, isOpenAccess, and openAccessPdf.url fields where available.
+
+    Raises:
+        json.JSONDecodeError: If a metadata file contains invalid JSON.
+        requests.exceptions.RequestException: If a request or transfer fails after
+            retries.
+        OSError: If reading metadata or writing a PDF fails.
+    """
+    urls_by_paper: dict[str, dict[str, None]] = {}
+    for file in input_path.rglob("*.json"):
+        with file.open(encoding="utf-8") as f:
+            records = json.load(f)
+
+        for record in records:
+            if not isinstance(record, dict) or record.get("isOpenAccess") is not True:
+                continue
+            paper_id = record.get("paperId")
+            pdf = record.get("openAccessPdf")
+            url = pdf.get("url") if isinstance(pdf, dict) else None
+            if isinstance(paper_id, str) and paper_id and isinstance(url, str) and url.strip():
+                urls_by_paper.setdefault(paper_id, {})[url.strip()] = None
+
+    if not urls_by_paper:
+        logger.info(f"No open-access PDFs listed in '{input_path}'")
+        return
+
+    output_dir = input_path / "open_access_pdf"
+    available = 0
+    for paper_id, urls in urls_by_paper.items():
+        for url in urls:
+            if download_open_access_pdf(url=url, path=output_dir, file_name=f"{paper_id}.pdf"):
+                available += 1
+                break
+
+    logger.info(
+        f"{available:,} of {len(urls_by_paper):,} open-access PDFs available in '{output_dir}'"
+    )

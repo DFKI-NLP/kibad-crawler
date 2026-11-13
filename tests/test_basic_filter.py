@@ -151,45 +151,14 @@ def test_check_papers_exist(data_dirs, exists):
     assert basic_filter._check_papers_exist("another-release") is False
 
 
-def test_execute_all_search_queries(paper_files, data_dirs, queries, monkeypatch):
-    """Create the output directory and save matching records for every query."""
-    monkeypatch.setattr(basic_filter, "ALL_SEARCH_QUERIES", queries)
-
-    basic_filter.execute_all_search_queries(RELEASE_ID)
-
-    _, interim_dir = data_dirs
-    output_dir = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / "papers"
-    output_dir /= "query_search"
-    assert sorted(path.name for path in output_dir.iterdir()) == [
-        "Q1 - German forests.json",
-        "Q2 - Canadian forests.json",
-    ]
-    for query, expected in zip(queries, [PAPERS[:2], [PAPERS[2]]], strict=True):
-        saved = json.loads((output_dir / f"{query.id} - {query.name}.json").read_text())
-        assert sorted(saved, key=lambda paper: paper["paperId"]) == expected
-
-
-def test_execute_search_query(paper_files, data_dirs, queries):
-    """Execute a single query and save its full matching paper records."""
-    basic_filter.execute_search_query(RELEASE_ID, queries[1])
-
-    _, interim_dir = data_dirs
-    output_dir = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / "papers"
-    output_dir /= "query_search"
-    assert [path.name for path in output_dir.iterdir()] == ["Q2 - Canadian forests.json"]
-    assert json.loads((output_dir / "Q2 - Canadian forests.json").read_text()) == [PAPERS[2]]
-
-
 @pytest.mark.parametrize(
     "operation",
     [
-        "execute_all_search_queries",
-        "execute_search_query",
         "load_documents_to_database",
         "execute_all_search_queries_sift",
     ],
 )
-def test_missing_release(data_dirs, queries, monkeypatch, operation):
+def test_missing_release(data_dirs, monkeypatch, operation):
     """Skip searching, saving, and database creation when metadata is absent."""
     search = Mock()
     save = Mock()
@@ -197,9 +166,8 @@ def test_missing_release(data_dirs, queries, monkeypatch, operation):
     monkeypatch.setattr(basic_filter, "get_papers_from_search", search)
     monkeypatch.setattr(basic_filter, "save_selected_papers", save)
     monkeypatch.setattr(basic_filter.sifts, "Collection", collection_factory)
-    kwargs = {"query": queries[0]} if operation == "execute_search_query" else {}
 
-    assert getattr(basic_filter, operation)(RELEASE_ID, **kwargs) is None
+    assert getattr(basic_filter, operation)(RELEASE_ID) is None
 
     search.assert_not_called()
     save.assert_not_called()
@@ -278,3 +246,34 @@ def test_execute_all_search_queries_sift(paper_files, data_dirs, queries, monkey
     for query, expected in zip(queries, [PAPERS[:2], [PAPERS[2]]], strict=True):
         saved = json.loads((output_dir / f"{query.id} - {query.name}.json").read_text())
         assert sorted(saved, key=lambda paper: paper["paperId"]) == expected
+
+
+def test_search_release_diff_uses_only_diff_metadata(paper_files, data_dirs, queries, monkeypatch):
+    start_release = "2026-08-25"
+    diff_path = Path("diffs") / f"{start_release}_to_{RELEASE_ID}" / "papers"
+    diff_dir = paper_files.parent / diff_path
+    diff_dir.mkdir(parents=True)
+    changed_paper = {**PAPERS[0], "citationCount": 99}
+    (diff_dir / "papers.json").write_text(json.dumps([changed_paper]), encoding="utf-8")
+    monkeypatch.setattr(
+        basic_filter,
+        "ALL_SEARCH_QUERIES",
+        [replace(queries[0], query="forest"), replace(queries[1], query="Canada")],
+    )
+
+    basic_filter.execute_all_search_queries_sift(RELEASE_ID, release_diff=start_release)
+
+    _, interim_dir = data_dirs
+    diff_output = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / diff_path
+    assert (diff_output / "database" / "papers.db").is_file()
+    assert json.loads((diff_output / "sifts" / "Q1 - German forests.json").read_text()) == [
+        changed_paper
+    ]
+    assert json.loads((diff_output / "sifts" / "Q2 - Canadian forests.json").read_text()) == []
+
+
+def test_search_release_diff_with_missing_metadata(paper_files, data_dirs):
+    basic_filter.execute_all_search_queries_sift(RELEASE_ID, release_diff="2026-08-25")
+
+    _, interim_dir = data_dirs
+    assert not interim_dir.exists()

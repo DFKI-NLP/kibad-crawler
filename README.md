@@ -18,9 +18,9 @@ flowchart LR
     paper_dataset --> filter_dates{Filter paper metadata by publication_id and publication dates}
     filter_dates --> abstract_dataset(Download paper's **abstracts** using S2 API)
     abstract_dataset --> search_string{Query Search filter using title and abstract}
+    search_string --> download_pdf(Download PDF)
     end
     subgraph To be implemented
-    search_string --> download_pdf(Download PDF)
     download_pdf --> relevance_filter{Relevance Filter using content}
     relevance_filter --> postprocessing(Postprocessing)
     end
@@ -84,12 +84,22 @@ uv run kibad-crawler download-paper-metadata-diff --help
 uv run kibad-crawler download-paper-metadata-diff --start-release 2026-09-01
 
 uv run kibad-crawler run-string-searches --help
-uv run kibad-crawler run-string-searches --method sifts
-uv run kibad-crawler run-string-searches --method plain
+uv run kibad-crawler run-string-searches --release YYYY-MM-DD
 
 uv run kibad-crawler string-search-info --help
 uv run kibad-crawler string-search-info
+
+uv run kibad-crawler download-open-access-files --help
+uv run kibad-crawler download-open-access-files <PATH_TO_RESULTS_FROM_STRING_SEARCH>
 ```
+
+## Open-access PDFs
+
+Pass the directory of JSON results from `run-string-searches` to download
+open-access PDFs for the papers selected by keyword search. The command reads
+the paper IDs and PDF URLs from the JSON and saves the files under
+`open_access_pdf/` within that directory. It also accepts other directories
+containing compatible Semantic Scholar metadata.
 
 ## Download algorithm
 
@@ -237,7 +247,7 @@ uv run kibad-crawler run-string-searches
 
 `run-string-searches` will execute all the string searches available in the
 `search_queries.py` module. The results (paper selection based on keyword
-searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
+searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/sifts`.
 
 The workflow is as follows:
 
@@ -246,17 +256,23 @@ The workflow is as follows:
 1. Using all the search queries defined in `search_queries.py` it applies
     one by one to each paper.
 1. Save the papers's metadata results to
-    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
+    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/sifts`
     by query, with file names such as: `Q1 - Forest - Trends.json`,
     `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
     `Q4 - Forest - Ecosystem Services.json`, etc.
 
-Two methods to run the query searches. Defaults to `sifts`.
+Keyword searches use `sifts` with SQLite FTS5 for phrases and wildcards.
 
-- `sifts`: implements keyword searches with SQLite FTS5 that handles special
-    characters.
-- `plain`: that is an ad-hoc implementation that checks for the appearance
-    of the keywords in the paper metadata, ignoring special characters.
+To search the new and changed papers from a downloaded release diff, pass
+the end release with `--release` and the start release with `--release-diff`.
+Download that diff with `download-paper-metadata-diff` first.
+
+```bash
+uv run kibad-crawler run-string-searches --release 2026-09-08 --release-diff 2026-09-01
+```
+
+Sifts saves the results under
+`INTERIM_DATA_DIR/semantic_scholar/release/<end>/diffs/<start>_to_<end>/papers/sifts`.
 
 Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
 
@@ -301,6 +317,57 @@ criteria = RelevanceFilter(min_citation_count=5, keywords=["NLP", "transformer"]
 papers = [...]  # list of paper dicts from bulk API
 filtered = client.filter_by_relevance(papers, criteria)
 ``` -->
+
+# Docker
+
+```bash
+# Remove and build a new Docker image
+docker rmi $(docker images kibad/crawler:1.0 -q) \
+&& docker build -t kibad/crawler:1.0 .
+
+# Start a new container that can run CLI commands
+docker run --name crawler \
+    -itd \
+    -v ./data:/opt/kibad-crawler/data:z \
+    kibad/crawler:1.0
+
+# Log in to the container
+docker exec -it crawler bash
+
+# Start an ephimeral container to list releases
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler list-releases'
+
+# Start an ephimeral container to download publication venues
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    --v ./data:/opt/kibad-crawler/data:z \
+    -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler download-publication-venues'
+
+# Start an ephimeral container to download paper's metadata
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    -v ./data:/opt/kibad-crawler/data:z \
+    -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler download-paper-metadata'
+
+# Start an ephimeral container to filter paper's metadata based on keyword searches
+docker run \
+    -it \
+    --rm \
+    --name crawler \
+    -v ./data:/opt/kibad-crawler/data:z \
+    -e S2_API_KEY='SEMANTIC_SCHOLAR_API_KEY' \
+    kibad/crawler:1.0 bash -c 'uv run kibad-crawler run-string-searches'
+```
 
 # Resources
 
