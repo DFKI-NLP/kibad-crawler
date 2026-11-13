@@ -151,45 +151,14 @@ def test_check_papers_exist(data_dirs, exists):
     assert basic_filter._check_papers_exist("another-release") is False
 
 
-def test_execute_all_search_queries(paper_files, data_dirs, queries, monkeypatch):
-    """Create the output directory and save matching records for every query."""
-    monkeypatch.setattr(basic_filter, "ALL_SEARCH_QUERIES", queries)
-
-    basic_filter.execute_all_search_queries(RELEASE_ID)
-
-    _, interim_dir = data_dirs
-    output_dir = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / "papers"
-    output_dir /= "query_search"
-    assert sorted(path.name for path in output_dir.iterdir()) == [
-        "Q1 - German forests.json",
-        "Q2 - Canadian forests.json",
-    ]
-    for query, expected in zip(queries, [PAPERS[:2], [PAPERS[2]]], strict=True):
-        saved = json.loads((output_dir / f"{query.id} - {query.name}.json").read_text())
-        assert sorted(saved, key=lambda paper: paper["paperId"]) == expected
-
-
-def test_execute_search_query(paper_files, data_dirs, queries):
-    """Execute a single query and save its full matching paper records."""
-    basic_filter.execute_search_query(RELEASE_ID, queries[1])
-
-    _, interim_dir = data_dirs
-    output_dir = interim_dir / "semantic_scholar" / "release" / RELEASE_ID / "papers"
-    output_dir /= "query_search"
-    assert [path.name for path in output_dir.iterdir()] == ["Q2 - Canadian forests.json"]
-    assert json.loads((output_dir / "Q2 - Canadian forests.json").read_text()) == [PAPERS[2]]
-
-
 @pytest.mark.parametrize(
     "operation",
     [
-        "execute_all_search_queries",
-        "execute_search_query",
         "load_documents_to_database",
         "execute_all_search_queries_sift",
     ],
 )
-def test_missing_release(data_dirs, queries, monkeypatch, operation):
+def test_missing_release(data_dirs, monkeypatch, operation):
     """Skip searching, saving, and database creation when metadata is absent."""
     search = Mock()
     save = Mock()
@@ -197,9 +166,8 @@ def test_missing_release(data_dirs, queries, monkeypatch, operation):
     monkeypatch.setattr(basic_filter, "get_papers_from_search", search)
     monkeypatch.setattr(basic_filter, "save_selected_papers", save)
     monkeypatch.setattr(basic_filter.sifts, "Collection", collection_factory)
-    kwargs = {"query": queries[0]} if operation == "execute_search_query" else {}
 
-    assert getattr(basic_filter, operation)(RELEASE_ID, **kwargs) is None
+    assert getattr(basic_filter, operation)(RELEASE_ID) is None
 
     search.assert_not_called()
     save.assert_not_called()
