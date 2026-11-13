@@ -546,6 +546,8 @@ def cross_validate_semantic_filter(
     The report with the mean and standard deviation of the metrics is saved in
     `<results-dir>/semantic_filter/<table>_<objective>.md`.
     Coverage is the fraction of test papers with an embedding.
+    The baselines keep all papers, keep none, or randomly keep the same number
+    as the filter from the papers with embeddings.
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
     df = read_screening_tables(SCREENING_TABLES_DIR, tables)
@@ -560,9 +562,13 @@ def cross_validate_semantic_filter(
         n_splits=n_splits,
         objective=objective,
     )
-    rows = "\n".join(
-        f"| {name} | {mean:.3f} | {std:.3f} |" for name, (mean, std) in results.items()
-    )
+    coverage_mean, coverage_std = results["coverage"]
+    rows = []
+    metric_names = ("accuracy", "precision", "recall", "f1")
+    for method, metrics in results["metrics"].items():
+        cells = [f"{metrics[name][0]:.3f} ± {metrics[name][1]:.3f}" for name in metric_names]
+        rows.append("| " + " | ".join([method, *cells]) + " |")
+    metrics_table = "\n".join(rows)
     output_path = results_dir / "semantic_filter" / f"{table}_{objective}.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -570,7 +576,10 @@ def cross_validate_semantic_filter(
         f"{len(dois):,} screened papers, {sum(labels):,} of them relevant, "
         f"{n_splits} random 80:20 splits.\n"
         f"Training maximized `{objective}`.\n\n"
-        f"| metric | mean | standard deviation |\n|---|---|---|\n{rows}\n",
+        f"Embedding coverage (mean ± standard deviation) is "
+        f"{coverage_mean:.3f} ± {coverage_std:.3f}.\n\n"
+        "| Method | Accuracy | Precision | Recall | F1 |\n"
+        f"|---|---|---|---|---|\n{metrics_table}\n",
         encoding="utf-8",
     )
     logger.info(f"results saved to '{output_path}'")

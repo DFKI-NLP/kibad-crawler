@@ -19,27 +19,34 @@ keeps.
 
 Each objective used five random 80:20 train/test splits per table, with seeds
 0 through 4. The tables show means across the held-out splits. The linked
-reports also give standard deviations. Metrics and accuracy baselines are
-computed on papers with embeddings. Coverage is the fraction of all held-out
+reports give mean and standard deviation for accuracy, precision, recall, and
+F1 for the filter and all three baselines. All methods are scored on the
+held-out papers with embeddings. Coverage is the fraction of all held-out
 papers with an embedding.
+
+- **Keep all** keeps every scorable paper.
+- **Keep none** rejects every scorable paper.
+- **Random** samples without replacement from the scorable papers and keeps
+    exactly as many as the filter kept in that split. The random draw is
+    reproducible from the split seed.
 
 ### Accuracy objective
 
-| Screening table                                                 | Accuracy | Keep-all accuracy | Keep-none accuracy | Precision | Recall |    F1 | Coverage |
-| --------------------------------------------------------------- | -------: | ----------------: | -----------------: | --------: | -----: | ----: | -------: |
-| [ÖSL Lebensraum](ecosystem_services_habitats_accuracy.md)       |    0.771 |             0.729 |              0.271 |     0.782 |  0.952 | 0.858 |    0.919 |
-| [ÖSL Querschnitt](ecosystem_services_cross_section_accuracy.md) |    0.887 |             0.122 |              0.878 |     0.569 |  0.347 | 0.423 |    0.944 |
-| [Agrar All](agricultural_accuracy.md)                           |    0.628 |             0.595 |              0.405 |     0.647 |  0.829 | 0.726 |    0.907 |
-| [Küste Trends](coast_trends_accuracy.md)                        |    0.931 |             0.069 |              0.931 |     0.000 |  0.000 | 0.000 |    0.956 |
+| Screening table                                                 | Accuracy | Precision | Recall |    F1 | Keep-all F1 | Random F1 | Coverage |
+| --------------------------------------------------------------- | -------: | --------: | -----: | ----: | ----------: | --------: | -------: |
+| [ÖSL Lebensraum](ecosystem_services_habitats_accuracy.md)       |    0.771 |     0.782 |  0.952 | 0.858 |       0.843 |     0.796 |    0.919 |
+| [ÖSL Querschnitt](ecosystem_services_cross_section_accuracy.md) |    0.887 |     0.569 |  0.347 | 0.423 |       0.217 |     0.108 |    0.944 |
+| [Agrar All](agricultural_accuracy.md)                           |    0.628 |     0.647 |  0.829 | 0.726 |       0.746 |     0.672 |    0.907 |
+| [Küste Trends](coast_trends_accuracy.md)                        |    0.931 |     0.000 |  0.000 | 0.000 |       0.130 |     0.000 |    0.956 |
 
 ### F1 objective
 
-| Screening table                                           | Accuracy | Keep-all accuracy | Keep-none accuracy | Precision | Recall |    F1 | Coverage |
-| --------------------------------------------------------- | -------: | ----------------: | -----------------: | --------: | -----: | ----: | -------: |
-| [ÖSL Lebensraum](ecosystem_services_habitats_f1.md)       |    0.775 |             0.729 |              0.271 |     0.775 |  0.979 | 0.864 |    0.919 |
-| [ÖSL Querschnitt](ecosystem_services_cross_section_f1.md) |    0.858 |             0.122 |              0.878 |     0.454 |  0.650 | 0.529 |    0.944 |
-| [Agrar All](agricultural_f1.md)                           |    0.627 |             0.595 |              0.405 |     0.628 |  0.921 | 0.746 |    0.907 |
-| [Küste Trends](coast_trends_f1.md)                        |    0.878 |             0.069 |              0.931 |     0.247 |  0.330 | 0.277 |    0.956 |
+| Screening table                                           | Accuracy | Precision | Recall |    F1 | Keep-all F1 | Random F1 | Coverage |
+| --------------------------------------------------------- | -------: | --------: | -----: | ----: | ----------: | --------: | -------: |
+| [ÖSL Lebensraum](ecosystem_services_habitats_f1.md)       |    0.775 |     0.775 |  0.979 | 0.864 |       0.843 |     0.818 |    0.919 |
+| [ÖSL Querschnitt](ecosystem_services_cross_section_f1.md) |    0.858 |     0.454 |  0.650 | 0.529 |       0.217 |     0.152 |    0.944 |
+| [Agrar All](agricultural_f1.md)                           |    0.627 |     0.628 |  0.921 | 0.746 |       0.746 |     0.712 |    0.907 |
+| [Küste Trends](coast_trends_f1.md)                        |    0.878 |     0.247 |  0.330 | 0.277 |       0.130 |     0.067 |    0.956 |
 
 ## Reproduce the reports
 
@@ -75,6 +82,13 @@ recall gains came on Küste Trends (0.000 to 0.330) and ÖSL Querschnitt
 (0.347 to 0.650). Accuracy fell below the keep-none baseline on both.
 For screening, the higher recall means fewer relevant papers are missed.
 Küste Trends still missed about two thirds of relevant papers with embeddings.
+
+At the same screening workload, the filter scored higher mean F1 than the
+random baseline in seven of the eight runs. The accuracy-tuned Küste Trends
+filter kept nothing, so its random baseline also kept nothing.
+On Agrar All, the F1-tuned filter and keep-all both rounded to 0.746 F1.
+The filter had higher precision (0.628 versus 0.595), while keep-all had
+higher recall (1.000 versus 0.921).
 
 ## Notes
 

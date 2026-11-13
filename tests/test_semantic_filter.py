@@ -75,8 +75,6 @@ def test_get_metrics():
             "precision": 0.5,
             "recall": 1 / 3,
             "f1": 0.4,
-            "accuracy_keep_all": 0.75,
-            "accuracy_keep_none": 0.25,
         }
     )
 
@@ -177,9 +175,7 @@ def test_evaluate(embeddings, tmp_path):
         tmp_path / "model", ["r1", "n1", "missing"], [True, False, True]
     )
 
-    assert metrics["accuracy"] == 1.0
-    assert metrics["coverage"] == pytest.approx(2 / 3)
-    assert metrics["accuracy_keep_all"] == 0.5
+    assert metrics == {"accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0}
 
 
 def test_evaluate_without_embeddings(embeddings, tmp_path):
@@ -223,14 +219,51 @@ def test_cross_validation_requires_two_embeddings_per_class(embeddings, tmp_path
 def test_cross_validation(embeddings, tmp_path):
     results = SemanticFilter.cross_validation(DOIS, LABELS, tmp_path, n_splits=3)
 
-    assert set(results) == {
-        "accuracy",
-        "precision",
-        "recall",
-        "f1",
-        "accuracy_keep_all",
-        "accuracy_keep_none",
-        "coverage",
-    }
-    assert all(len(value) == 2 for value in results.values())
+    assert results["coverage"] == (1.0, 0.0)
+    assert set(results["metrics"]) == {"filter", "keep_all", "keep_none", "random"}
+    for metrics in results["metrics"].values():
+        assert set(metrics) == {"accuracy", "precision", "recall", "f1"}
+        assert all(len(value) == 2 for value in metrics.values())
     assert sorted(path.name for path in tmp_path.iterdir()) == ["split_0", "split_1", "split_2"]
+
+
+def test_cross_validation_scores_baselines_on_scorable_papers(monkeypatch, tmp_path):
+    test_dois = ["a", "b", "c", "d", "missing"]
+    test_labels = [True, True, False, False, True]
+    monkeypatch.setattr(
+        SemanticFilter, "create_splits", lambda *args, **kwargs: ([], [], test_dois, test_labels)
+    )
+    monkeypatch.setattr(SemanticFilter, "train", lambda *args, **kwargs: SemanticFilter())
+    monkeypatch.setattr(
+        SemanticFilter, "predict", lambda self, dois: [True, True, False, False, None]
+    )
+
+    results = SemanticFilter.cross_validation(test_dois, test_labels, tmp_path, n_splits=1)
+
+    assert results["coverage"] == (0.8, 0.0)
+    assert results["metrics"] == {
+        "filter": {
+            "accuracy": (1.0, 0.0),
+            "precision": (1.0, 0.0),
+            "recall": (1.0, 0.0),
+            "f1": (1.0, 0.0),
+        },
+        "keep_all": {
+            "accuracy": (0.5, 0.0),
+            "precision": (0.5, 0.0),
+            "recall": (1.0, 0.0),
+            "f1": (2 / 3, 0.0),
+        },
+        "keep_none": {
+            "accuracy": (0.5, 0.0),
+            "precision": (0.0, 0.0),
+            "recall": (0.0, 0.0),
+            "f1": (0.0, 0.0),
+        },
+        "random": {
+            "accuracy": (0.5, 0.0),
+            "precision": (0.5, 0.0),
+            "recall": (0.5, 0.0),
+            "f1": (0.5, 0.0),
+        },
+    }

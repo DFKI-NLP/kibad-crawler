@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import time
+from typing import TypedDict
 
 from loguru import logger
 import numpy as np
@@ -25,6 +26,13 @@ FIELDS = "paperId,embedding.specter_v2"
 DELAY_BETWEEN_BATCHES = 3
 ALPHAS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 N_THRESHOLDS = 21
+
+
+class CrossValidationResult(TypedDict):
+    """Mean and standard deviation of coverage and the metrics for each method."""
+
+    coverage: tuple[float, float]
+    metrics: dict[str, dict[str, tuple[float, float]]]
 
 
 def get_embeddings(dois: list[str], cache_path: Path = EMBEDDINGS_FILE) -> dict[str, list | None]:
@@ -89,8 +97,7 @@ def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]
         labels (np.ndarray): True for the papers screened as relevant.
 
     Returns:
-        dict[str, float]: The metrics and, as baselines, the accuracy of
-            keeping every paper and of keeping none.
+        dict[str, float]: Accuracy, precision, recall and F1.
     """
     true_positives = (predictions & labels).sum()
     precision = true_positives / predictions.sum() if predictions.any() else 0.0
@@ -101,8 +108,6 @@ def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]
         "precision": float(precision),
         "recall": float(recall),
         "f1": float(f1),
-        "accuracy_keep_all": float(labels.mean()),
-        "accuracy_keep_none": float(1 - labels.mean()),
     }
 
 
@@ -268,20 +273,25 @@ class SemanticFilter:
 
         Returns:
             dict[str, float]: Metrics on the papers with an embedding, see
-                `get_metrics`, and coverage as the fraction of test papers
-                with an embedding.
+                `get_metrics`.
 
         Raises:
             ValueError: If no test papers have embeddings.
         """
+        kept, scorable_labels = cls._load_scorable_predictions(model_dir, dois, labels)
+        return get_metrics(kept, scorable_labels)
+
+    @classmethod
+    def _load_scorable_predictions(
+        cls, model_dir: Path, dois: list[str], labels: list[bool]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return the aligned predictions and labels for papers with embeddings."""
         predictions = cls.load(model_dir).predict(dois)
         available = np.array([prediction is not None for prediction in predictions], dtype=bool)
         if not available.any():
             raise ValueError(f"No test papers have embeddings for model at {model_dir}")
         kept = np.array([bool(prediction) for prediction in predictions], dtype=bool)[available]
-        metrics = get_metrics(kept, np.array(labels, dtype=bool)[available])
-        metrics["coverage"] = float(available.mean())
-        return metrics
+        return kept, np.array(labels, dtype=bool)[available]
 
     @staticmethod
     def create_splits(
@@ -323,7 +333,7 @@ class SemanticFilter:
         model_dir: Path,
         n_splits: int = 5,
         objective: str = "accuracy",
-    ) -> dict[str, tuple[float, float]]:
+    ) -> CrossValidationResult:
         """Train and evaluate on `n_splits` random splits.
 
         Args:
@@ -334,10 +344,11 @@ class SemanticFilter:
             objective (str, optional): Training metric to maximize. Defaults to "accuracy".
 
         Returns:
-            dict[str, tuple[float, float]]: Mean and standard deviation of each
-                metric over the splits.
+            CrossValidationResult: Mean and standard deviation of embedding
+                coverage and of each metric for the filter and its baselines.
         """
         results = []
+        coverage = []
         for seed in range(n_splits):
             train_dois, train_labels, test_dois, test_labels = cls.create_splits(
                 dois, labels, seed=seed
@@ -348,12 +359,34 @@ class SemanticFilter:
             except ValueError as error:
                 raise ValueError(f"Training failed for split {seed}. {error}") from error
             model.save(split_dir)
-            results.append(cls.evaluate(split_dir, test_dois, test_labels))
+            kept, scorable_labels = cls._load_scorable_predictions(
+                split_dir, test_dois, test_labels
+            )
+            coverage.append(kept.size / len(test_dois))
+
+            random_kept = np.zeros_like(kept)
+            # Use a separate random stream from the train/test split.
+            rng = np.random.default_rng([seed, 1])
+            random_kept[rng.choice(kept.size, size=int(kept.sum()), replace=False)] = True
+            results.append(
+                {
+                    "filter": get_metrics(kept, scorable_labels),
+                    "keep_all": get_metrics(np.ones_like(kept), scorable_labels),
+                    "keep_none": get_metrics(np.zeros_like(kept), scorable_labels),
+                    "random": get_metrics(random_kept, scorable_labels),
+                }
+            )
             logger.info(f"split {seed}: {results[-1]}")
         return {
-            name: (
-                float(np.mean([r[name] for r in results])),
-                float(np.std([r[name] for r in results])),
-            )
-            for name in results[0]
+            "coverage": (float(np.mean(coverage)), float(np.std(coverage))),
+            "metrics": {
+                method: {
+                    metric: (
+                        float(np.mean([split[method][metric] for split in results])),
+                        float(np.std([split[method][metric] for split in results])),
+                    )
+                    for metric in metrics
+                }
+                for method, metrics in results[0].items()
+            },
         }
