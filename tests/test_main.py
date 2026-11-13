@@ -233,8 +233,8 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
     )
     calls = []
 
-    def fake_cross_validation(dois, labels, model_dir, n_splits):
-        calls.append((dois, labels, model_dir.name, n_splits))
+    def fake_cross_validation(dois, labels, model_dir, n_splits, objective):
+        calls.append((dois, labels, model_dir.name, n_splits, objective))
         return {"accuracy": (0.8, 0.05), "coverage": (0.9, 0.025)}
 
     monkeypatch.setattr(main.SemanticFilter, "cross_validation", fake_cross_validation)
@@ -249,13 +249,18 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
             "ecosystem_services_habitats",
             "--n-splits",
             "3",
+            "--objective",
+            "f1",
         ],
     )
 
     assert result.exit_code == 0, result.output
     # the paper without a decision is left out
-    assert calls == [(["a", "b", "d"], [True, False, True], "ecosystem_services_habitats", 3)]
+    assert calls == [
+        (["a", "b", "d"], [True, False, True], "ecosystem_services_habitats", 3, "f1")
+    ]
     report = tmp_path / "evaluation" / "results" / "semantic_filter_ecosystem_services_habitats.md"
     contents = report.read_text()
+    assert "Training maximized `f1`." in contents
     assert "| accuracy | 0.800 | 0.050 |" in contents
     assert "| coverage | 0.900 | 0.025 |" in contents

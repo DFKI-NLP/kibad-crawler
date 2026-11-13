@@ -1,6 +1,7 @@
 # Semantic filter: ecosystem_services_cross_section
 
 840 screened papers, 104 of them relevant, 5 random 80:20 splits.
+Training maximized `accuracy`.
 
 | metric             | mean  | standard deviation |
 | ------------------ | ----- | ------------------ |

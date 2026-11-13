@@ -124,6 +124,23 @@ def test_train_compares_with_the_other_papers(embeddings):
     assert model.negative_vectors.shape == (3, 3)
 
 
+def test_train_maximizes_selected_metric(embeddings, monkeypatch):
+    labels = [True, True, False, False, False, False, False]
+    positive_scores = np.array([0.4, 0.3, 0.8, 0.7, 0.6, 0.5, 0.2])
+    negative_scores = np.zeros(len(labels))
+    monkeypatch.setattr(
+        semantic_filter, "get_training_scores", lambda *_: (positive_scores, negative_scores)
+    )
+
+    accuracy_model = SemanticFilter.train(DOIS, labels)
+    f1_model = SemanticFilter.train(DOIS, labels, objective="f1")
+    accuracy_kept = accuracy_model.keep(positive_scores, negative_scores)
+    f1_kept = f1_model.keep(positive_scores, negative_scores)
+
+    assert accuracy_kept.sum() == 1
+    assert f1_kept.sum() == 6
+
+
 def test_save_and_load(tmp_path):
     model = SemanticFilter(0.5, 0.7, 0.1, np.ones((2, 3)), np.zeros((1, 3)))
 

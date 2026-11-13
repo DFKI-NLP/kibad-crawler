@@ -167,9 +167,11 @@ class SemanticFilter:
         return predictions
 
     @classmethod
-    def train(cls, dois: list[str], labels: list[bool]) -> "SemanticFilter":
-        """Estimate the hyperparameters that give the highest accuracy on the
-        given papers, which also become the examples of the filter.
+    def train(
+        cls, dois: list[str], labels: list[bool], objective: str = "accuracy"
+    ) -> "SemanticFilter":
+        """Estimate the hyperparameters that maximize the objective on the given
+        papers, which also become the examples of the filter.
 
         Each paper is compared with the other papers only, see
         `get_training_scores`.
@@ -177,6 +179,8 @@ class SemanticFilter:
         Args:
             dois (list[str]): DOIs of the screened papers.
             labels (list[bool]): True for the papers screened as relevant.
+            objective (str, optional): Metric from `get_metrics` to maximize.
+                Defaults to "accuracy".
 
         Returns:
             SemanticFilter: Filter with the best hyperparameters and the
@@ -188,7 +192,7 @@ class SemanticFilter:
         positive_scores, negative_scores = get_training_scores(vectors, relevant)
 
         best = cls(positive_vectors=vectors[relevant], negative_vectors=vectors[~relevant])
-        best_accuracy = -1.0
+        best_score = -1.0
         quantiles = np.linspace(0, 1, N_THRESHOLDS)
         for alpha in ALPHAS:
             scores = positive_scores - alpha * negative_scores
@@ -196,16 +200,16 @@ class SemanticFilter:
                 for min_margin in np.quantile(scores, quantiles):
                     candidate = cls(alpha, float(min_positive_similarity), float(min_margin))
                     kept = candidate.keep(positive_scores, negative_scores)
-                    accuracy = float((kept == relevant).mean())
-                    if accuracy > best_accuracy:
-                        best_accuracy = accuracy
+                    score = get_metrics(kept, relevant)[objective]
+                    if score > best_score:
+                        best_score = score
                         best.alpha = alpha
                         best.min_positive_similarity = float(min_positive_similarity)
                         best.min_margin = float(min_margin)
         logger.info(
             f"trained on {len(relevant):,} papers: alpha={best.alpha}, "
             f"min_positive_similarity={best.min_positive_similarity:.4f}, "
-            f"min_margin={best.min_margin:.4f}, training accuracy {best_accuracy:.3f}"
+            f"min_margin={best.min_margin:.4f}, training {objective} {best_score:.3f}"
         )
         return best
 
@@ -285,7 +289,12 @@ class SemanticFilter:
 
     @classmethod
     def cross_validation(
-        cls, dois: list[str], labels: list[bool], model_dir: Path, n_splits: int = 5
+        cls,
+        dois: list[str],
+        labels: list[bool],
+        model_dir: Path,
+        n_splits: int = 5,
+        objective: str = "accuracy",
     ) -> dict[str, tuple[float, float]]:
         """Train and evaluate on `n_splits` random splits.
 
@@ -294,6 +303,7 @@ class SemanticFilter:
             labels (list[bool]): True for the papers screened as relevant.
             model_dir (Path): Folder for the filter of each split.
             n_splits (int, optional): Number of splits. Defaults to 5.
+            objective (str, optional): Training metric to maximize. Defaults to "accuracy".
 
         Returns:
             dict[str, tuple[float, float]]: Mean and standard deviation of each
@@ -305,7 +315,7 @@ class SemanticFilter:
                 dois, labels, seed=seed
             )
             split_dir = model_dir / f"split_{seed}"
-            cls.train(train_dois, train_labels).save(split_dir)
+            cls.train(train_dois, train_labels, objective=objective).save(split_dir)
             results.append(cls.evaluate(split_dir, test_dois, test_labels))
             logger.info(f"split {seed}: {results[-1]}")
         return {

@@ -524,6 +524,9 @@ def cross_validate_semantic_filter(
         ),
     ],
     n_splits: Annotated[int, typer.Option(help="Number of random 80:20 splits.")] = 5,
+    objective: Annotated[
+        str, typer.Option(help="Training metric to maximize, e.g. 'accuracy' or 'f1'.")
+    ] = "accuracy",
 ):
     """Train and evaluate the semantic filter on the screened papers of one
     screening table.
@@ -550,7 +553,11 @@ def cross_validate_semantic_filter(
     logger.info(f"{len(dois):,} screened papers, {sum(labels):,} of them relevant")
 
     results = SemanticFilter.cross_validation(
-        dois, labels, model_dir=INTERIM_DATA_DIR / "semantic_filter" / table, n_splits=n_splits
+        dois,
+        labels,
+        model_dir=INTERIM_DATA_DIR / "semantic_filter" / table,
+        n_splits=n_splits,
+        objective=objective,
     )
     rows = "\n".join(
         f"| {name} | {mean:.3f} | {std:.3f} |" for name, (mean, std) in results.items()
@@ -560,7 +567,8 @@ def cross_validate_semantic_filter(
     output_path.write_text(
         f"# Semantic filter: {table}\n\n"
         f"{len(dois):,} screened papers, {sum(labels):,} of them relevant, "
-        f"{n_splits} random 80:20 splits.\n\n"
+        f"{n_splits} random 80:20 splits.\n"
+        f"Training maximized `{objective}`.\n\n"
         f"| metric | mean | standard deviation |\n|---|---|---|\n{rows}\n",
         encoding="utf-8",
     )

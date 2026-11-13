@@ -1,6 +1,7 @@
 # Semantic filter: ecosystem_services_habitats
 
 283 screened papers, 212 of them relevant, 5 random 80:20 splits.
+Training maximized `accuracy`.
 
 | metric             | mean  | standard deviation |
 | ------------------ | ----- | ------------------ |
