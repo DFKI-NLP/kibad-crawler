@@ -6,7 +6,6 @@ of Semantic Scholar provides. A paper is scored by its highest cosine
 similarity to the relevant examples minus `alpha` times its highest similarity
 to the not relevant examples. The thresholds are estimated on screened papers
 of one screening table, since the examples of one table encode its own task.
-See https://github.com/DFKI-NLP/kibad-crawler/issues/50.
 """
 
 from dataclasses import dataclass, field
