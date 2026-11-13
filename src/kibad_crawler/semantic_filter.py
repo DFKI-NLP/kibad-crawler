@@ -216,6 +216,13 @@ class SemanticFilter:
                         best.alpha = alpha
                         best.min_positive_similarity = float(min_positive_similarity)
                         best.min_margin = float(min_margin)
+
+        reject_all_score = get_metrics(np.zeros_like(relevant), relevant)[objective]
+        if reject_all_score > best_score:
+            best_score = reject_all_score
+            # A threshold above the cosine similarity range also rejects unseen papers.
+            best.min_positive_similarity = 2.0
+
         logger.info(
             f"trained on {len(relevant):,} papers: alpha={best.alpha}, "
             f"min_positive_similarity={best.min_positive_similarity:.4f}, "

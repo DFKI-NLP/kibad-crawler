@@ -141,8 +141,22 @@ def test_train_maximizes_selected_metric(embeddings, monkeypatch):
     accuracy_kept = accuracy_model.keep(positive_scores, negative_scores)
     f1_kept = f1_model.keep(positive_scores, negative_scores)
 
-    assert accuracy_kept.sum() == 1
+    assert accuracy_kept.sum() == 0
     assert f1_kept.sum() == 6
+
+
+def test_train_considers_rejecting_all_when_scores_are_tied(monkeypatch):
+    dois = ["a", "b", "c", "d", "e"]
+    labels = [True, True, False, False, False]
+    monkeypatch.setattr(
+        semantic_filter, "get_embeddings", lambda dois: dict.fromkeys(dois, [1.0, 0.0])
+    )
+
+    accuracy_model = SemanticFilter.train(dois, labels)
+    f1_model = SemanticFilter.train(dois, labels, objective="f1")
+
+    assert accuracy_model.predict(dois) == [False] * len(dois)
+    assert f1_model.predict(dois) == [True] * len(dois)
 
 
 def test_save_and_load(tmp_path):
