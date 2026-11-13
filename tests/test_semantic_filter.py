@@ -168,22 +168,17 @@ def test_save_and_load(tmp_path):
     assert np.array_equal(loaded.negative_vectors, model.negative_vectors)
 
 
-def test_evaluate(embeddings, tmp_path):
-    SemanticFilter.train(DOIS, LABELS).save(tmp_path / "model")
+def test_evaluate(embeddings):
+    model = SemanticFilter.train(DOIS, LABELS)
 
-    metrics = SemanticFilter.evaluate(
-        tmp_path / "model", ["r1", "n1", "missing"], [True, False, True]
-    )
+    metrics = model.evaluate(["r1", "n1", "missing"], [True, False, True])
 
     assert metrics == {"accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0}
 
 
-def test_evaluate_without_embeddings(embeddings, tmp_path):
-    model_dir = tmp_path / "model"
-    SemanticFilter().save(model_dir)
-
+def test_evaluate_without_embeddings(embeddings):
     with pytest.raises(ValueError, match="No test papers have embeddings"):
-        SemanticFilter.evaluate(model_dir, ["missing"], [True])
+        SemanticFilter().evaluate(["missing"], [True])
 
 
 def test_create_splits():

@@ -89,6 +89,17 @@ def normalize(vectors: np.ndarray) -> np.ndarray:
     return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
+def _scorable_predictions(
+    predictions: list[bool | None], labels: list[bool]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return the aligned predictions and labels for papers with embeddings."""
+    available = np.array([prediction is not None for prediction in predictions], dtype=bool)
+    if not available.any():
+        raise ValueError("No test papers have embeddings")
+    kept = np.array([bool(prediction) for prediction in predictions], dtype=bool)[available]
+    return kept, np.array(labels, dtype=bool)[available]
+
+
 def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]:
     """Return accuracy, precision, recall and F1 of binary predictions.
 
@@ -262,12 +273,10 @@ class SemanticFilter:
             negative_vectors=vectors["negative"],
         )
 
-    @classmethod
-    def evaluate(cls, model_dir: Path, dois: list[str], labels: list[bool]) -> dict[str, float]:
-        """Load a filter and compare its predictions with the screening.
+    def evaluate(self, dois: list[str], labels: list[bool]) -> dict[str, float]:
+        """Compare the filter's predictions with the screening.
 
         Args:
-            model_dir (Path): Folder written by `save`.
             dois (list[str]): DOIs of the screened papers.
             labels (list[bool]): True for the papers screened as relevant.
 
@@ -278,20 +287,8 @@ class SemanticFilter:
         Raises:
             ValueError: If no test papers have embeddings.
         """
-        kept, scorable_labels = cls._load_scorable_predictions(model_dir, dois, labels)
+        kept, scorable_labels = _scorable_predictions(self.predict(dois), labels)
         return get_metrics(kept, scorable_labels)
-
-    @classmethod
-    def _load_scorable_predictions(
-        cls, model_dir: Path, dois: list[str], labels: list[bool]
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Return the aligned predictions and labels for papers with embeddings."""
-        predictions = cls.load(model_dir).predict(dois)
-        available = np.array([prediction is not None for prediction in predictions], dtype=bool)
-        if not available.any():
-            raise ValueError(f"No test papers have embeddings for model at {model_dir}")
-        kept = np.array([bool(prediction) for prediction in predictions], dtype=bool)[available]
-        return kept, np.array(labels, dtype=bool)[available]
 
     @staticmethod
     def create_splits(
@@ -359,10 +356,12 @@ class SemanticFilter:
             except ValueError as error:
                 raise ValueError(f"Training failed for split {seed}. {error}") from error
             model.save(split_dir)
-            kept, scorable_labels = cls._load_scorable_predictions(
-                split_dir, test_dois, test_labels
-            )
-            coverage.append(kept.size / len(test_dois))
+            predictions = model.predict(test_dois)
+            try:
+                kept, scorable_labels = _scorable_predictions(predictions, test_labels)
+            except ValueError as error:
+                raise ValueError(f"Evaluation failed for split {seed}. {error}") from error
+            coverage.append(kept.size / len(predictions))
 
             random_kept = np.zeros_like(kept)
             # Use a separate random stream from the train/test split.
