@@ -12,10 +12,11 @@ from dataclasses import dataclass, field
 import json
 from pathlib import Path
 import time
-from typing import TypedDict
+from typing import Self, TypedDict
 
 from loguru import logger
 import numpy as np
+from numpy.typing import NDArray
 
 from kibad_crawler.config import INTERIM_DATA_DIR
 from kibad_crawler.semantic_scholar import academic_graph
@@ -35,20 +36,19 @@ class CrossValidationResult(TypedDict):
     metrics: dict[str, dict[str, tuple[float, float]]]
 
 
-def get_embeddings(dois: list[str], cache_path: Path = EMBEDDINGS_FILE) -> dict[str, list | None]:
-    """Return the SPECTER2 embedding of each DOI, requesting only the ones that
-    are not in the cache yet.
+def _get_embeddings(
+    dois: list[str], cache_path: Path = EMBEDDINGS_FILE
+) -> dict[str, list[float] | None]:
+    """Return cached SPECTER2 embeddings and request any uncached DOIs.
 
     Args:
-        dois (list[str]): DOIs of the papers.
-        cache_path (Path, optional): JSON file with the embeddings requested
-            before. Defaults to `EMBEDDINGS_FILE`.
+        dois: Paper DOIs.
+        cache_path: JSON file used to read and store embeddings.
 
     Returns:
-        dict[str, list | None]: Embedding per DOI, None where Semantic Scholar
-            does not know the paper or has no embedding for it.
+        Each DOI mapped to its embedding vector or `None` if unavailable.
     """
-    cache: dict[str, list | None] = (
+    cache: dict[str, list[float] | None] = (
         json.loads(cache_path.read_text()) if cache_path.exists() else {}
     )
     missing = sorted(set(dois) - set(cache))
@@ -65,17 +65,18 @@ def get_embeddings(dois: list[str], cache_path: Path = EMBEDDINGS_FILE) -> dict[
     return {doi: cache[doi] for doi in dois}
 
 
-def get_vectors(dois: list[str]) -> tuple[np.ndarray, np.ndarray]:
+def _get_vectors(dois: list[str]) -> tuple[NDArray[np.floating], NDArray[np.bool_]]:
     """Return the embeddings of the papers that have one.
 
     Args:
-        dois (list[str]): DOIs of the papers.
+        dois: Paper DOIs.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: Embeddings as rows, and a boolean mask
-            over `dois` that is True for the papers with an embedding.
+        A matrix with one row per available embedding, in input order, and a
+        Boolean mask aligned with `dois`. The matrix has shape (0, 0) when
+        no embeddings are available.
     """
-    embeddings = get_embeddings(dois)
+    embeddings = _get_embeddings(dois)
     available = np.array([embeddings[doi] is not None for doi in dois], dtype=bool)
     if not available.all():
         logger.info(f"{(~available).sum():,} of {len(dois):,} papers without an embedding skipped")
@@ -83,16 +84,34 @@ def get_vectors(dois: list[str]) -> tuple[np.ndarray, np.ndarray]:
     return (np.array(vectors) if vectors else np.empty((0, 0))), available
 
 
-def normalize(vectors: np.ndarray) -> np.ndarray:
-    """Return the vectors scaled to length 1, so that the dot product is the
-    cosine similarity."""
+def _normalize(vectors: NDArray[np.floating]) -> NDArray[np.floating]:
+    """Scale each row to unit length for cosine similarity.
+
+    Args:
+        vectors: A matrix with one nonzero embedding per row.
+
+    Returns:
+        The normalized matrix with the same shape as `vectors`.
+    """
     return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
 def _scorable_predictions_and_labels(
     predictions: list[bool | None], labels: list[bool]
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return the aligned predictions and labels for papers with embeddings."""
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
+    """Keep the aligned predictions and labels for papers with embeddings.
+
+    Args:
+        predictions: One decision per paper, with `None` for missing embeddings.
+        labels: Relevance labels in the same order as `predictions`.
+
+    Returns:
+        Two one-dimensional Boolean arrays containing the scorable decisions
+        and their corresponding labels, in input order.
+
+    Raises:
+        ValueError: If no test papers have embeddings.
+    """
     available = np.array([prediction is not None for prediction in predictions], dtype=bool)
     if not available.any():
         raise ValueError("No test papers have embeddings")
@@ -100,15 +119,16 @@ def _scorable_predictions_and_labels(
     return scorable_predictions, np.array(labels, dtype=bool)[available]
 
 
-def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]:
+def _get_metrics(predictions: NDArray[np.bool_], labels: NDArray[np.bool_]) -> dict[str, float]:
     """Return accuracy, precision, recall and F1 of binary predictions.
 
     Args:
-        predictions (np.ndarray): True for the papers that are kept.
-        labels (np.ndarray): True for the papers screened as relevant.
+        predictions: Nonempty one-dimensional array with `True` for kept papers.
+        labels: One-dimensional relevance labels aligned with `predictions`.
 
     Returns:
-        dict[str, float]: Accuracy, precision, recall and F1.
+        Accuracy, precision, recall, and F1. Precision, recall, and F1 are
+        zero when their respective denominators are zero.
     """
     true_positives = (predictions & labels).sum()
     precision = true_positives / predictions.sum() if predictions.any() else 0.0
@@ -122,22 +142,23 @@ def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]
     }
 
 
-def get_training_scores(
-    vectors: np.ndarray, relevant: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return the highest similarity of each paper to the other relevant and
-    the other not relevant papers.
-
-    A paper is not compared with itself, otherwise a relevant paper has a
-    similarity of 1 and the thresholds are estimated on that.
+def _get_training_scores(
+    vectors: NDArray[np.floating], relevant: NDArray[np.bool_]
+) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+    """Compute the highest similarity to another paper in each class.
 
     Args:
-        vectors (np.ndarray): Normalized embeddings of the papers as rows.
-        relevant (np.ndarray): True for the papers screened as relevant.
+        vectors: Normalized embeddings with one paper per row.
+        relevant: Boolean relevance labels aligned with the rows.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: Highest similarity to a relevant and to
-            a not relevant paper.
+        Two one-dimensional arrays with the highest similarities to another
+        relevant and another irrelevant paper, respectively. A paper without
+        another example in its own class has a score of negative infinity
+        for that class.
+
+    Raises:
+        ValueError: If either class has no examples.
     """
     similarities = vectors @ vectors.T
     np.fill_diagonal(similarities, -np.inf)
@@ -146,16 +167,35 @@ def get_training_scores(
 
 @dataclass
 class SemanticFilter:
-    """Hyperparameters and examples of the semantic filter."""
+    """Store the thresholds and labeled examples used to filter papers.
+
+    Attributes:
+        alpha: Weight of the maximum similarity to irrelevant examples.
+        min_positive_similarity: Minimum similarity to a relevant example.
+        min_margin: Minimum score after subtracting weighted irrelevant similarity.
+        positive_vectors: Relevant embeddings with one example per row.
+        negative_vectors: Irrelevant embeddings with one example per row.
+    """
 
     alpha: float = 1.0
     min_positive_similarity: float = -1.0
     min_margin: float = -3.0
-    positive_vectors: np.ndarray = field(default_factory=lambda: np.empty((0, 0)))
-    negative_vectors: np.ndarray = field(default_factory=lambda: np.empty((0, 0)))
+    positive_vectors: NDArray[np.floating] = field(default_factory=lambda: np.empty((0, 0)))
+    negative_vectors: NDArray[np.floating] = field(default_factory=lambda: np.empty((0, 0)))
 
-    def keep(self, positive_scores: np.ndarray, negative_scores: np.ndarray) -> np.ndarray:
-        """Return True for the papers whose similarity scores pass the thresholds."""
+    def _keep(
+        self, positive_scores: NDArray[np.floating], negative_scores: NDArray[np.floating]
+    ) -> NDArray[np.bool_]:
+        """Apply both thresholds to the similarity scores.
+
+        Args:
+            positive_scores: Maximum similarity to relevant examples per paper.
+            negative_scores: Maximum similarity to irrelevant examples for the
+                same papers, in the same order.
+
+        Returns:
+            One Boolean decision per paper, with `True` if both thresholds pass.
+        """
         scores = positive_scores - self.alpha * negative_scores
         return (positive_scores >= self.min_positive_similarity) & (scores >= self.min_margin)
 
@@ -163,48 +203,45 @@ class SemanticFilter:
         """Decide for each paper whether it is kept.
 
         Args:
-            dois (list[str]): DOIs of the papers.
+            dois: Paper DOIs.
 
         Returns:
-            list[bool | None]: True for the papers that are kept, None for the
-                papers without an embedding.
+            One decision per DOI, in input order. `True` means keep, `False`
+            means reject, and `None` means the embedding is unavailable.
         """
-        vectors, available = get_vectors(dois)
+        vectors, available = _get_vectors(dois)
         predictions: list[bool | None] = [None] * len(dois)
         if not available.any():
             return predictions
-        vectors = normalize(vectors)
-        positive_scores = (vectors @ normalize(self.positive_vectors).T).max(axis=1)
-        negative_scores = (vectors @ normalize(self.negative_vectors).T).max(axis=1)
-        scorable_predictions = self.keep(positive_scores, negative_scores)
+        vectors = _normalize(vectors)
+        positive_scores = (vectors @ _normalize(self.positive_vectors).T).max(axis=1)
+        negative_scores = (vectors @ _normalize(self.negative_vectors).T).max(axis=1)
+        scorable_predictions = self._keep(positive_scores, negative_scores)
         for index, decision in zip(np.flatnonzero(available), scorable_predictions):
             predictions[index] = bool(decision)
         return predictions
 
     @classmethod
-    def train(
-        cls, dois: list[str], labels: list[bool], objective: str = "accuracy"
-    ) -> "SemanticFilter":
-        """Estimate the hyperparameters that maximize the objective on the given
-        papers, which also become the examples of the filter.
+    def train(cls, dois: list[str], labels: list[bool], objective: str = "accuracy") -> Self:
+        """Fit thresholds that maximize the objective on screened papers.
 
-        Each paper is compared with the other papers only, see
-        `get_training_scores`.
+        Training compares each paper with the other examples. The returned model
+        uses all training papers with embeddings as examples.
 
         Args:
-            dois (list[str]): DOIs of the screened papers.
-            labels (list[bool]): True for the papers screened as relevant.
-            objective (str, optional): Metric from `get_metrics` to maximize.
-                Defaults to "accuracy".
+            dois: DOIs of the screened papers.
+            labels: Relevance labels aligned with `dois`.
+            objective: Metric to maximize, one of `accuracy`, `precision`,
+                `recall`, or `f1`.
 
         Returns:
-            SemanticFilter: Filter with the best hyperparameters and the
-                embeddings of the papers as examples.
+            The fitted filter.
 
         Raises:
+            KeyError: If `objective` is an unknown metric.
             ValueError: If either class has fewer than two papers with embeddings.
         """
-        vectors, available = get_vectors(dois)
+        vectors, available = _get_vectors(dois)
         relevant = np.array(labels, dtype=bool)[available]
         n_relevant = int(relevant.sum())
         n_irrelevant = relevant.size - n_relevant
@@ -214,8 +251,8 @@ class SemanticFilter:
                 f"with embeddings. Found {n_relevant} relevant and {n_irrelevant} irrelevant."
             )
 
-        vectors = normalize(vectors)
-        positive_scores, negative_scores = get_training_scores(vectors, relevant)
+        vectors = _normalize(vectors)
+        positive_scores, negative_scores = _get_training_scores(vectors, relevant)
 
         best = cls(positive_vectors=vectors[relevant], negative_vectors=vectors[~relevant])
         best_score = -1.0
@@ -225,15 +262,15 @@ class SemanticFilter:
             for min_positive_similarity in np.quantile(positive_scores, quantiles):
                 for min_margin in np.quantile(scores, quantiles):
                     candidate = cls(alpha, float(min_positive_similarity), float(min_margin))
-                    predictions = candidate.keep(positive_scores, negative_scores)
-                    score = get_metrics(predictions, relevant)[objective]
+                    predictions = candidate._keep(positive_scores, negative_scores)
+                    score = _get_metrics(predictions, relevant)[objective]
                     if score > best_score:
                         best_score = score
                         best.alpha = alpha
                         best.min_positive_similarity = float(min_positive_similarity)
                         best.min_margin = float(min_margin)
 
-        reject_all_score = get_metrics(np.zeros_like(relevant), relevant)[objective]
+        reject_all_score = _get_metrics(np.zeros_like(relevant), relevant)[objective]
         if reject_all_score > best_score:
             best_score = reject_all_score
             # A threshold above the cosine similarity range also rejects unseen papers.
@@ -246,9 +283,15 @@ class SemanticFilter:
         )
         return best
 
-    def save(self, model_dir: Path):
-        """Write the hyperparameters to `hyperparameters.json` and the examples
-        to `vectors.npz` in `model_dir`."""
+    def save(self, model_dir: Path) -> None:
+        """Write hyperparameters to JSON and example vectors to a NumPy archive.
+
+        Args:
+            model_dir: Directory for `hyperparameters.json` and `vectors.npz`.
+
+        Raises:
+            OSError: If the directory or model files cannot be written.
+        """
         model_dir.mkdir(parents=True, exist_ok=True)
         hyperparameters = {
             "alpha": self.alpha,
@@ -263,8 +306,18 @@ class SemanticFilter:
         )
 
     @classmethod
-    def load(cls, model_dir: Path) -> "SemanticFilter":
-        """Read a filter written by `save`."""
+    def load(cls, model_dir: Path) -> Self:
+        """Read a filter written by `save`.
+
+        Args:
+            model_dir: Directory containing the hyperparameters and example vectors.
+
+        Returns:
+            A filter reconstructed from the saved files.
+
+        Raises:
+            OSError: If a model file cannot be opened.
+        """
         hyperparameters = json.loads((model_dir / "hyperparameters.json").read_text())
         with np.load(model_dir / "vectors.npz") as vectors:
             return cls(
@@ -277,13 +330,12 @@ class SemanticFilter:
         """Compare the filter's predictions with the screening.
 
         Args:
-            dois (list[str]): DOIs of the screened papers.
-            labels (list[bool]): True for the papers screened as relevant.
+            dois: DOIs of the screened papers.
+            labels: Relevance labels aligned with `dois`.
 
         Returns:
-            dict[str, float]: Metrics on the papers with an embedding, see
-                `get_metrics`, and coverage as the fraction of test papers
-                with an embedding.
+            Accuracy, precision, recall, and F1 on papers with embeddings,
+            plus the fraction of all test papers with an embedding.
 
         Raises:
             ValueError: If no test papers have embeddings.
@@ -292,7 +344,7 @@ class SemanticFilter:
         scorable_predictions, scorable_labels = _scorable_predictions_and_labels(
             predictions, labels
         )
-        metrics = get_metrics(scorable_predictions, scorable_labels)
+        metrics = _get_metrics(scorable_predictions, scorable_labels)
         metrics["coverage"] = scorable_predictions.size / len(predictions)
         return metrics
 
@@ -303,14 +355,13 @@ class SemanticFilter:
         """Split the papers randomly into a training and a test part.
 
         Args:
-            dois (list[str]): DOIs of the screened papers.
-            labels (list[bool]): True for the papers screened as relevant.
-            test_size (float, optional): Share of the test part. Defaults to 0.2.
-            seed (int, optional): Seed of the random split. Defaults to 0.
+            dois: DOIs of the screened papers.
+            labels: Relevance labels aligned with `dois`.
+            test_size: Fraction of papers to put in the test set.
+            seed: Random seed for the split.
 
         Returns:
-            tuple[list[str], list[bool], list[str], list[bool]]: DOIs and
-                labels of the training part, then of the test part.
+            Training DOIs and labels followed by test DOIs and labels.
 
         Raises:
             ValueError: If DOIs repeat after trimming whitespace and lowercasing.
@@ -339,14 +390,21 @@ class SemanticFilter:
         """Train and evaluate on `n_splits` random splits.
 
         Args:
-            dois (list[str]): DOIs of the screened papers.
-            labels (list[bool]): True for the papers screened as relevant.
-            n_splits (int, optional): Number of splits. Defaults to 5.
-            objective (str, optional): Training metric to maximize. Defaults to "accuracy".
+            dois: DOIs of the screened papers.
+            labels: Relevance labels aligned with `dois`.
+            n_splits: Number of random splits.
+            objective: Metric to maximize when fitting each split's model.
 
         Returns:
-            CrossValidationResult: Mean and standard deviation of embedding
-                coverage and of each metric for the filter and its baselines.
+            Mean and standard deviation of embedding coverage and each metric
+            for the trained filter and the keep-all, keep-none, and random
+            baselines. The random baseline matches the number of papers kept
+            by the filter within each split.
+
+        Raises:
+            KeyError: If `objective` is an unknown metric.
+            ValueError: If DOIs repeat, a training class has fewer than two
+                papers with embeddings, or a test split has no embeddings.
         """
         results = []
         coverage = []
@@ -371,10 +429,12 @@ class SemanticFilter:
             random_predictions[random_indices] = True
             results.append(
                 {
-                    "trained": get_metrics(scorable_predictions, scorable_labels),
-                    "keep_all": get_metrics(np.ones_like(scorable_predictions), scorable_labels),
-                    "keep_none": get_metrics(np.zeros_like(scorable_predictions), scorable_labels),
-                    "random": get_metrics(random_predictions, scorable_labels),
+                    "trained": _get_metrics(scorable_predictions, scorable_labels),
+                    "keep_all": _get_metrics(np.ones_like(scorable_predictions), scorable_labels),
+                    "keep_none": _get_metrics(
+                        np.zeros_like(scorable_predictions), scorable_labels
+                    ),
+                    "random": _get_metrics(random_predictions, scorable_labels),
                 }
             )
             logger.info(f"split {seed}: {results[-1]}")

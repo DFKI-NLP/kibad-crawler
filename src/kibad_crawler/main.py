@@ -528,7 +528,7 @@ def cross_validate_semantic_filter(
         str, typer.Option(help="Training metric to maximize, e.g. 'accuracy' or 'f1'.")
     ] = "accuracy",
     results_dir: Annotated[Path, typer.Option()] = PROJ_ROOT / "evaluation" / "results",
-):
+) -> None:
     """Train and evaluate the semantic filter on the screened papers of one
     screening table.
 
@@ -547,6 +547,12 @@ def cross_validate_semantic_filter(
     Coverage is the fraction of test papers with an embedding.
     The baselines keep all papers, keep none, or randomly keep the same number
     as the filter from the papers with embeddings.
+
+    Args:
+        table: Name of the screening table to evaluate.
+        n_splits: Number of random train/test splits.
+        objective: Metric to maximize when training the filter.
+        results_dir: Parent directory for the semantic filter report.
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
     df = read_screening_tables(SCREENING_TABLES_DIR, tables)
