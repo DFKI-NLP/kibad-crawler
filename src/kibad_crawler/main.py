@@ -359,12 +359,19 @@ def run_string_searches(
             help="Search strings with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
         ),
     ] = "sifts",
+    release_diff: Annotated[
+        str | None,
+        typer.Option(help="Start release of a downloaded diff to search with sifts (YYYY-MM-DD)."),
+    ] = None,
 ):
     """
     Select papers based on keyword search. This filters a Semantic Scholar release
     by executing all the string searches available in the `search_queries.py` module.
     The results (paper selection based on keyword searches) are saved to
     `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
+
+    Pass --release-diff with the start release of a downloaded diff to search
+    its new and changed papers with sifts. --release identifies the end release.
 
     The workflow is as follows:
     1. Given a release, it searches the paper metadata downloaded based on
@@ -379,11 +386,16 @@ def run_string_searches(
 
     Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
     """
+    if release_diff is not None and method == "plain":
+        raise typer.BadParameter(
+            "Release-diff searches require sifts.", param_hint="--release-diff"
+        )
+
     release_id = release or datasets.get_available_releases()[-1]
     if method == "plain":
         execute_all_search_queries(release_id=release_id)
     elif method == "sifts":
-        execute_all_search_queries_sift(release_id=release_id)
+        execute_all_search_queries_sift(release_id=release_id, release_diff=release_diff)
 
 
 @app.command()

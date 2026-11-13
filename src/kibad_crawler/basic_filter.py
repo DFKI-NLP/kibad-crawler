@@ -102,7 +102,21 @@ def get_papers_from_search(query: str, files_path: Path) -> list:
     return paper_filter
 
 
-def save_selected_papers(paper_ids: list, query: Query, release_id: str, output_dir: Path):
+def _release_papers_path(release_id: str, release_diff: str | None = None) -> Path:
+    release_path = Path("semantic_scholar") / "release" / release_id
+    if release_diff is not None:
+        release_path /= Path("diffs") / f"{release_diff}_to_{release_id}"
+    return release_path / "papers"
+
+
+def save_selected_papers(
+    paper_ids: list,
+    query: Query,
+    release_id: str,
+    output_dir: Path,
+    *,
+    release_diff: str | None = None,
+):
     """Save to disk a list of papers in JSON format.
 
     Args:
@@ -110,9 +124,10 @@ def save_selected_papers(paper_ids: list, query: Query, release_id: str, output_
         query (Query): Query to include its name to include in the JSON file.
         release_id (str): Release to find the directory with papers to execute
             the queries.
+        output_dir (Path): Directory for the filtered paper metadata.
+        release_diff (str | None): Start release when selecting from a diff.
     """
-    # papers
-    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
+    files_path = RAW_DATA_DIR / _release_papers_path(release_id, release_diff)
     json_files = files_path.glob("**/*.json")
 
     # Filter papers by paper id
@@ -123,13 +138,9 @@ def save_selected_papers(paper_ids: list, query: Query, release_id: str, output_
 
     # Save selected papers by query name
     df_papers = pd.concat(data).reset_index(drop=True)
-    df_papers.to_json(
-        output_dir / f"{query.id} - {query.name}.json", index=False, orient="records"
-    )
-
-    logger.info(
-        f'{len(paper_ids):,} "{query.name}" papers saved to "{output_dir / f"{query.id} {query.name}.json"}"'
-    )
+    output_file = output_dir / f"{query.id} - {query.name}.json"
+    df_papers.to_json(output_file, index=False, orient="records")
+    logger.info(f'{len(paper_ids):,} "{query.name}" papers saved to "{output_file}"')
 
 
 def _check_papers_exist(release_id: str) -> bool:
@@ -202,25 +213,32 @@ def execute_search_query(release_id: str, query: Query):
 # sifts
 
 
-def load_documents_to_database(release_id: str) -> CollectionBase | None:
+def load_documents_to_database(
+    release_id: str, *, release_diff: str | None = None
+) -> CollectionBase | None:
     """Load documents (title + abstract) to an sqlite database.
 
     Args:
         release_id (str): Release to identify the location of the papers.
+        release_diff (str | None): Start release when loading a diff.
 
     Returns:
         (CollectionBase): Database with papers loaded.
     """
-    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / f"{release_id}" / "papers")
-    if not _check_papers_exist(release_id=release_id):
+    papers_path = _release_papers_path(release_id, release_diff)
+    files_path = RAW_DATA_DIR / papers_path
+    json_files = list(files_path.glob("**/*.json"))
+    if not json_files:
+        command = "download-paper-metadata"
+        if release_diff is not None:
+            command = f"download-paper-metadata-diff --start-release {release_diff} --end-release {release_id}"
+        logger.warning(
+            f"No metadata in '{files_path}'. Run 'uv run kibad-crawler {command}' first."
+        )
         return None
 
-    json_files = list(files_path.glob("**/*.json"))
     logger.info(f"Processing files in '{files_path}'")
-
-    database_path = (
-        INTERIM_DATA_DIR / "semantic_scholar" / "release" / f"{release_id}" / "papers" / "database"
-    )
+    database_path = INTERIM_DATA_DIR / papers_path / "database"
     database_path.mkdir(parents=True, exist_ok=True)
     if (database_path / "papers.db").exists():
         (database_path / "papers.db").unlink()
@@ -247,7 +265,7 @@ def load_documents_to_database(release_id: str) -> CollectionBase | None:
     end = pendulum.now()
     duration = end - start
     logger.info(
-        f"{total_papers:,} papers loaded to database '{release_id}.db' in {duration.in_words()}"
+        f"{total_papers:,} papers loaded to '{database_path / 'papers.db'}' in {duration.in_words()}"
     )
     return collection
 
@@ -270,7 +288,7 @@ def get_papers_from_search_with_sifts(
         (list): Paper ids of the papers that pass the filter.
     """
     results = collection.query(query.query)
-    df = pd.DataFrame(results["results"]).sort_values(by=["rank"]).reset_index(drop=True)
+    df = pd.DataFrame(results["results"], columns=["rank", "id"]).sort_values(by="rank")
     paper_ids = df["id"].to_list()[: top_n or df.shape[0]]
     logger.info(
         f'{len(paper_ids):,} papers out of {results["total"]:,} results from {collection.count():,} papers in the database for {query.name}'
@@ -278,25 +296,27 @@ def get_papers_from_search_with_sifts(
     return paper_ids
 
 
-def execute_all_search_queries_sift(release_id: str):
+def execute_all_search_queries_sift(release_id: str, *, release_diff: str | None = None):
     """Run the string searches using a SQLite database with sifts.
 
     Args:
         release_id (str): Release version from Semantic Scholar with format
             'YYYY-MM-DD'.
+        release_diff (str | None): Start release when searching a diff.
     """
-    # Creates and load the database with papers if they exist
-    collection = load_documents_to_database(release_id=release_id)
+    collection = load_documents_to_database(release_id, release_diff=release_diff)
     if collection is None:
         return
 
     # Create the output directory
-    output_dir = Path(
-        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "sifts"
-    )
+    output_dir = INTERIM_DATA_DIR / _release_papers_path(release_id, release_diff) / "sifts"
     output_dir.mkdir(exist_ok=True, parents=True)
     for query in ALL_SEARCH_QUERIES:
         papers = get_papers_from_search_with_sifts(query=query, collection=collection)
         save_selected_papers(
-            paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
+            paper_ids=papers,
+            query=query,
+            release_id=release_id,
+            output_dir=output_dir,
+            release_diff=release_diff,
         )
