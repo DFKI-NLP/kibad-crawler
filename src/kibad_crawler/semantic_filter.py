@@ -351,20 +351,15 @@ class SemanticFilter:
         results = []
         coverage = []
         for seed in range(n_splits):
+            logger.info(f"Starting split {seed}")
             train_dois, train_labels, test_dois, test_labels = cls.create_splits(
                 dois, labels, seed=seed
             )
             split_dir = model_dir / f"split_{seed}"
-            try:
-                model = cls.train(train_dois, train_labels, objective=objective)
-            except ValueError as error:
-                raise ValueError(f"Training failed for split {seed}. {error}") from error
+            model = cls.train(train_dois, train_labels, objective=objective)
             model.save(split_dir)
             predictions = model.predict(test_dois)
-            try:
-                kept, scorable_labels = _scorable_predictions(predictions, test_labels)
-            except ValueError as error:
-                raise ValueError(f"Evaluation failed for split {seed}. {error}") from error
+            kept, scorable_labels = _scorable_predictions(predictions, test_labels)
             coverage.append(kept.size / len(predictions))
 
             random_kept = np.zeros_like(kept)
