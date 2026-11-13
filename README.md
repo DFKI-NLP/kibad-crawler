@@ -263,6 +263,17 @@ The workflow is as follows:
 
 Keyword searches use `sifts` with SQLite FTS5 for phrases and wildcards.
 
+To search the new and changed papers from a downloaded release diff, pass
+the end release with `--release` and the start release with `--release-diff`.
+Download that diff with `download-paper-metadata-diff` first.
+
+```bash
+uv run kibad-crawler run-string-searches --release 2026-09-08 --release-diff 2026-09-01
+```
+
+Sifts saves the results under
+`INTERIM_DATA_DIR/semantic_scholar/release/<end>/diffs/<start>_to_<end>/papers/sifts`.
+
 Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
 
 The search queries are composed by keywords and logical operators representing
