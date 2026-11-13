@@ -247,13 +247,14 @@ class SemanticFilter:
 
         Returns:
             dict[str, float]: Metrics on the papers with an embedding, see
-                `get_metrics`, and the number of papers without one.
+                `get_metrics`, and coverage as the fraction of test papers
+                with an embedding.
         """
         predictions = cls.load(model_dir).predict(dois)
         available = np.array([prediction is not None for prediction in predictions], dtype=bool)
         kept = np.array([bool(prediction) for prediction in predictions], dtype=bool)[available]
         metrics = get_metrics(kept, np.array(labels, dtype=bool)[available])
-        metrics["skipped"] = float((~available).sum())
+        metrics["coverage"] = float(available.mean())
         return metrics
 
     @staticmethod

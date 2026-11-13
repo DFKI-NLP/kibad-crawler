@@ -541,6 +541,7 @@ def cross_validate_semantic_filter(
     Output (under the project root): the filter of each split in
     `data/interim/semantic_filter/<table>/`, and the mean and standard deviation of
     the metrics in `evaluation/results/semantic_filter_<table>.md`.
+    Coverage is the percentage of test papers with an embedding.
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
     df = read_screening_tables(SCREENING_TABLES_DIR, tables)
@@ -552,7 +553,12 @@ def cross_validate_semantic_filter(
         dois, labels, model_dir=INTERIM_DATA_DIR / "semantic_filter" / table, n_splits=n_splits
     )
     rows = "\n".join(
-        f"| {name} | {mean:.3f} | {std:.3f} |" for name, (mean, std) in results.items()
+        (
+            f"| {name} | {mean:.3%} | {std:.3%} |"
+            if name == "coverage"
+            else f"| {name} | {mean:.3f} | {std:.3f} |"
+        )
+        for name, (mean, std) in results.items()
     )
     output_path = PROJ_ROOT / "evaluation" / "results" / f"semantic_filter_{table}.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)

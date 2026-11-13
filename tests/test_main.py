@@ -235,7 +235,7 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
 
     def fake_cross_validation(dois, labels, model_dir, n_splits):
         calls.append((dois, labels, model_dir.name, n_splits))
-        return {"accuracy": (0.8, 0.05)}
+        return {"accuracy": (0.8, 0.05), "coverage": (0.9, 0.025)}
 
     monkeypatch.setattr(main.SemanticFilter, "cross_validation", fake_cross_validation)
     monkeypatch.setattr(main, "PROJ_ROOT", tmp_path)
@@ -256,4 +256,6 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
     # the paper without a decision is left out
     assert calls == [(["a", "b", "d"], [True, False, True], "ecosystem_services_habitats", 3)]
     report = tmp_path / "evaluation" / "results" / "semantic_filter_ecosystem_services_habitats.md"
-    assert "| accuracy | 0.800 | 0.050 |" in report.read_text()
+    contents = report.read_text()
+    assert "| accuracy | 0.800 | 0.050 |" in contents
+    assert "| coverage | 90.000% | 2.500% |" in contents

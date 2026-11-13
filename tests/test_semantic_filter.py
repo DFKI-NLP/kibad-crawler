@@ -143,7 +143,7 @@ def test_evaluate(embeddings, tmp_path):
     )
 
     assert metrics["accuracy"] == 1.0
-    assert metrics["skipped"] == 1.0
+    assert metrics["coverage"] == pytest.approx(2 / 3)
     assert metrics["accuracy_keep_all"] == 0.5
 
 
@@ -175,7 +175,7 @@ def test_cross_validation(embeddings, tmp_path):
         "f1",
         "accuracy_keep_all",
         "accuracy_keep_none",
-        "skipped",
+        "coverage",
     }
     assert all(len(value) == 2 for value in results.values())
     assert sorted(path.name for path in tmp_path.iterdir()) == ["split_0", "split_1", "split_2"]
