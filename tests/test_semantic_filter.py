@@ -113,6 +113,10 @@ def test_predict(embeddings):
     assert model.predict(["r2", "missing", "n2"]) == [True, None, False]
 
 
+def test_predict_without_embeddings(embeddings):
+    assert SemanticFilter().predict(["missing", "missing"]) == [None, None]
+
+
 def test_train_compares_with_the_other_papers(embeddings):
     model = SemanticFilter.train(DOIS, LABELS)
 
@@ -162,6 +166,14 @@ def test_evaluate(embeddings, tmp_path):
     assert metrics["accuracy"] == 1.0
     assert metrics["coverage"] == pytest.approx(2 / 3)
     assert metrics["accuracy_keep_all"] == 0.5
+
+
+def test_evaluate_without_embeddings(embeddings, tmp_path):
+    model_dir = tmp_path / "model"
+    SemanticFilter().save(model_dir)
+
+    with pytest.raises(ValueError, match="No test papers have embeddings"):
+        SemanticFilter.evaluate(model_dir, ["missing"], [True])
 
 
 def test_create_splits():

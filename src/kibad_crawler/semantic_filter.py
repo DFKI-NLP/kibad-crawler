@@ -71,8 +71,8 @@ def get_vectors(dois: list[str]) -> tuple[np.ndarray, np.ndarray]:
     available = np.array([embeddings[doi] is not None for doi in dois], dtype=bool)
     if not available.all():
         logger.info(f"{(~available).sum():,} of {len(dois):,} papers without an embedding skipped")
-    vectors = np.array([embeddings[doi] for doi in dois if embeddings[doi] is not None])
-    return vectors.reshape(-1, vectors.shape[1] if vectors.size else 0), available
+    vectors = [embeddings[doi] for doi in dois if embeddings[doi] is not None]
+    return (np.array(vectors) if vectors else np.empty((0, 0))), available
 
 
 def normalize(vectors: np.ndarray) -> np.ndarray:
@@ -252,9 +252,14 @@ class SemanticFilter:
             dict[str, float]: Metrics on the papers with an embedding, see
                 `get_metrics`, and coverage as the fraction of test papers
                 with an embedding.
+
+        Raises:
+            ValueError: If no test papers have embeddings.
         """
         predictions = cls.load(model_dir).predict(dois)
         available = np.array([prediction is not None for prediction in predictions], dtype=bool)
+        if not available.any():
+            raise ValueError(f"No test papers have embeddings for model at {model_dir}")
         kept = np.array([bool(prediction) for prediction in predictions], dtype=bool)[available]
         metrics = get_metrics(kept, np.array(labels, dtype=bool)[available])
         metrics["coverage"] = float(available.mean())
