@@ -84,8 +84,7 @@ uv run kibad-crawler download-paper-metadata-diff --help
 uv run kibad-crawler download-paper-metadata-diff --start-release 2026-09-01
 
 uv run kibad-crawler run-string-searches --help
-uv run kibad-crawler run-string-searches --method sifts
-uv run kibad-crawler run-string-searches --method plain
+uv run kibad-crawler run-string-searches --release YYYY-MM-DD
 
 uv run kibad-crawler string-search-info --help
 uv run kibad-crawler string-search-info
@@ -237,7 +236,7 @@ uv run kibad-crawler run-string-searches
 
 `run-string-searches` will execute all the string searches available in the
 `search_queries.py` module. The results (paper selection based on keyword
-searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
+searches) are saved to `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/sifts`.
 
 The workflow is as follows:
 
@@ -246,17 +245,12 @@ The workflow is as follows:
 1. Using all the search queries defined in `search_queries.py` it applies
     one by one to each paper.
 1. Save the papers's metadata results to
-    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
+    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/sifts`
     by query, with file names such as: `Q1 - Forest - Trends.json`,
     `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
     `Q4 - Forest - Ecosystem Services.json`, etc.
 
-Two methods to run the query searches. Defaults to `sifts`.
-
-- `sifts`: implements keyword searches with SQLite FTS5 that handles special
-    characters.
-- `plain`: that is an ad-hoc implementation that checks for the appearance
-    of the keywords in the paper metadata, ignoring special characters.
+Keyword searches use `sifts` with SQLite FTS5 for phrases and wildcards.
 
 To search the new and changed papers from a downloaded release diff, pass
 the end release with `--release` and the start release with `--release-diff`.

@@ -163,53 +163,6 @@ def _check_papers_exist(release_id: str) -> bool:
     return True
 
 
-def execute_all_search_queries(release_id: str):
-    """Execute all the search queries that are in the system.
-
-    Args:
-        release_id (str): Release to find the directory where the paper's
-            metadata is stored.
-    """
-    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
-    if not _check_papers_exist(release_id=release_id):
-        return
-
-    # Create the output directory
-    output_dir = Path(
-        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
-    )
-    output_dir.mkdir(exist_ok=True, parents=True)
-
-    for query in ALL_SEARCH_QUERIES:
-        papers = get_papers_from_search(query=query.query, files_path=files_path)
-        save_selected_papers(
-            paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
-        )
-
-
-def execute_search_query(release_id: str, query: Query):
-    """Execute a single search query on the papers of a given release.
-
-    Args:
-        release_id (str): Release to find the papers.
-        query (Query): Query object to search in all the papers.
-    """
-    files_path = Path(RAW_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers")
-    if not _check_papers_exist(release_id=release_id):
-        return
-
-    # Create the output directory
-    output_dir = Path(
-        INTERIM_DATA_DIR / "semantic_scholar" / "release" / release_id / "papers" / "query_search"
-    )
-    output_dir.mkdir(exist_ok=True, parents=True)
-
-    papers = get_papers_from_search(query=query.query, files_path=files_path)
-    save_selected_papers(
-        paper_ids=papers, query=query, release_id=release_id, output_dir=output_dir
-    )
-
-
 # sifts
 
 
