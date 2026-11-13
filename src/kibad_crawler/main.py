@@ -1,16 +1,13 @@
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated
 
 from loguru import logger
 from rich import print as print_rich
 import typer
 
-from kibad_crawler.basic_filter import (
-    execute_all_search_queries,
-    execute_all_search_queries_sift,
-)
+from kibad_crawler.basic_filter import execute_all_search_queries_sift
 from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
@@ -353,18 +350,12 @@ def run_string_searches(
             help="Release version from Semantic Scholar with format 'YYYY-MM-DD'. The string search will be applied on papers from the given release stored in `INTERIM_DATA_DIR/semantic_scholar/release/<YYY-MM-DD>/papers`. It will use the latest release in case it is not provided."
         ),
     ] = None,
-    method: Annotated[
-        Literal["sifts", "plain"],
-        typer.Option(
-            help="Search strings with `sifts`, that implements search queries with SQLite FTS5 that handles special characters; or with `plain` that is an ad-hoc implementation that checks for the appearance of the keywords in the paper metadata, ignoring special characters. Defaults to `sifts`."
-        ),
-    ] = "sifts",
 ):
     """
     Select papers based on keyword search. This filters a Semantic Scholar release
     by executing all the string searches available in the `search_queries.py` module.
     The results (paper selection based on keyword searches) are saved to
-    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`.
+    `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/sifts`.
 
     The workflow is as follows:
     1. Given a release, it searches the paper metadata downloaded based on
@@ -372,7 +363,7 @@ def run_string_searches(
     2. Using all the search queries defined in `search_queries.py` it applies
         one by one to each paper.
     3. Save the papers's metadata results to
-        `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/<method>`
+        `INTERIM_DATA_DIR/semantic_scholar/release/<YYYY-MM-DD>/papers/sifts`
         by query, with file names such as: `Q1 - Forest - Trends.json`,
         `Q2 - Forest - Drivers.json`, `Q3 - Forest - Measures.json`,
         `Q4 - Forest - Ecosystem Services.json`, etc.
@@ -380,10 +371,7 @@ def run_string_searches(
     Use `uv run kibad-crawler string-search-info` to get an overview of the queries.
     """
     release_id = release or datasets.get_available_releases()[-1]
-    if method == "plain":
-        execute_all_search_queries(release_id=release_id)
-    elif method == "sifts":
-        execute_all_search_queries_sift(release_id=release_id)
+    execute_all_search_queries_sift(release_id=release_id)
 
 
 @app.command()
