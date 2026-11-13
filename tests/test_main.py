@@ -258,4 +258,4 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
     report = tmp_path / "evaluation" / "results" / "semantic_filter_ecosystem_services_habitats.md"
     contents = report.read_text()
     assert "| accuracy | 0.800 | 0.050 |" in contents
-    assert "| coverage | 90.000% | 2.500% |" in contents
+    assert "| coverage | 0.900 | 0.025 |" in contents
