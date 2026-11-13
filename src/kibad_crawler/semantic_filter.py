@@ -282,13 +282,17 @@ class SemanticFilter:
 
         Returns:
             dict[str, float]: Metrics on the papers with an embedding, see
-                `get_metrics`.
+                `get_metrics`, and coverage as the fraction of test papers
+                with an embedding.
 
         Raises:
             ValueError: If no test papers have embeddings.
         """
-        kept, scorable_labels = _scorable_predictions(self.predict(dois), labels)
-        return get_metrics(kept, scorable_labels)
+        predictions = self.predict(dois)
+        kept, scorable_labels = _scorable_predictions(predictions, labels)
+        metrics = get_metrics(kept, scorable_labels)
+        metrics["coverage"] = kept.size / len(predictions)
+        return metrics
 
     @staticmethod
     def create_splits(

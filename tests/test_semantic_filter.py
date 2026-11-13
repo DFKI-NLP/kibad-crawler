@@ -173,7 +173,13 @@ def test_evaluate(embeddings):
 
     metrics = model.evaluate(["r1", "n1", "missing"], [True, False, True])
 
-    assert metrics == {"accuracy": 1.0, "precision": 1.0, "recall": 1.0, "f1": 1.0}
+    assert metrics == {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "coverage": pytest.approx(2 / 3),
+    }
 
 
 def test_evaluate_without_embeddings(embeddings):
