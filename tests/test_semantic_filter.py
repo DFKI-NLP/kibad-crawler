@@ -93,10 +93,10 @@ def test_get_training_scores():
 def test_keep():
     model = SemanticFilter(alpha=1.0, min_positive_similarity=0.6, min_margin=0.3)
 
-    kept = model.keep(np.array([0.9, 0.5, 0.9]), np.array([0.2, 0.0, 0.8]))
+    predictions = model.keep(np.array([0.9, 0.5, 0.9]), np.array([0.2, 0.0, 0.8]))
 
     # the second fails the similarity, the third the margin 0.9 - 1.0 * 0.8
-    assert kept.tolist() == [True, False, False]
+    assert predictions.tolist() == [True, False, False]
 
 
 def test_predict(embeddings):

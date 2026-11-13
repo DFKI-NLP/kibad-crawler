@@ -89,15 +89,15 @@ def normalize(vectors: np.ndarray) -> np.ndarray:
     return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
-def _scorable_predictions(
+def _scorable_predictions_and_labels(
     predictions: list[bool | None], labels: list[bool]
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return the aligned predictions and labels for papers with embeddings."""
     available = np.array([prediction is not None for prediction in predictions], dtype=bool)
     if not available.any():
         raise ValueError("No test papers have embeddings")
-    kept = np.array([bool(prediction) for prediction in predictions], dtype=bool)[available]
-    return kept, np.array(labels, dtype=bool)[available]
+    scorable_predictions = np.array(predictions, dtype=bool)[available]
+    return scorable_predictions, np.array(labels, dtype=bool)[available]
 
 
 def get_metrics(predictions: np.ndarray, labels: np.ndarray) -> dict[str, float]:
@@ -176,8 +176,8 @@ class SemanticFilter:
         vectors = normalize(vectors)
         positive_scores = (vectors @ normalize(self.positive_vectors).T).max(axis=1)
         negative_scores = (vectors @ normalize(self.negative_vectors).T).max(axis=1)
-        kept = self.keep(positive_scores, negative_scores)
-        for index, decision in zip(np.flatnonzero(available), kept):
+        scorable_predictions = self.keep(positive_scores, negative_scores)
+        for index, decision in zip(np.flatnonzero(available), scorable_predictions):
             predictions[index] = bool(decision)
         return predictions
 
@@ -225,8 +225,8 @@ class SemanticFilter:
             for min_positive_similarity in np.quantile(positive_scores, quantiles):
                 for min_margin in np.quantile(scores, quantiles):
                     candidate = cls(alpha, float(min_positive_similarity), float(min_margin))
-                    kept = candidate.keep(positive_scores, negative_scores)
-                    score = get_metrics(kept, relevant)[objective]
+                    predictions = candidate.keep(positive_scores, negative_scores)
+                    score = get_metrics(predictions, relevant)[objective]
                     if score > best_score:
                         best_score = score
                         best.alpha = alpha
@@ -289,9 +289,11 @@ class SemanticFilter:
             ValueError: If no test papers have embeddings.
         """
         predictions = self.predict(dois)
-        kept, scorable_labels = _scorable_predictions(predictions, labels)
-        metrics = get_metrics(kept, scorable_labels)
-        metrics["coverage"] = kept.size / len(predictions)
+        scorable_predictions, scorable_labels = _scorable_predictions_and_labels(
+            predictions, labels
+        )
+        metrics = get_metrics(scorable_predictions, scorable_labels)
+        metrics["coverage"] = scorable_predictions.size / len(predictions)
         return metrics
 
     @staticmethod
@@ -359,19 +361,24 @@ class SemanticFilter:
             model = cls.train(train_dois, train_labels, objective=objective)
             model.save(split_dir)
             predictions = model.predict(test_dois)
-            kept, scorable_labels = _scorable_predictions(predictions, test_labels)
-            coverage.append(kept.size / len(predictions))
+            scorable_predictions, scorable_labels = _scorable_predictions_and_labels(
+                predictions, test_labels
+            )
+            coverage.append(scorable_predictions.size / len(predictions))
 
-            random_kept = np.zeros_like(kept)
+            random_predictions = np.zeros_like(scorable_predictions)
             # Use a separate random stream from the train/test split.
             rng = np.random.default_rng([seed, 1])
-            random_kept[rng.choice(kept.size, size=int(kept.sum()), replace=False)] = True
+            random_indices = rng.choice(
+                scorable_predictions.size, size=int(scorable_predictions.sum()), replace=False
+            )
+            random_predictions[random_indices] = True
             results.append(
                 {
-                    "trained": get_metrics(kept, scorable_labels),
-                    "keep_all": get_metrics(np.ones_like(kept), scorable_labels),
-                    "keep_none": get_metrics(np.zeros_like(kept), scorable_labels),
-                    "random": get_metrics(random_kept, scorable_labels),
+                    "trained": get_metrics(scorable_predictions, scorable_labels),
+                    "keep_all": get_metrics(np.ones_like(scorable_predictions), scorable_labels),
+                    "keep_none": get_metrics(np.zeros_like(scorable_predictions), scorable_labels),
+                    "random": get_metrics(random_predictions, scorable_labels),
                 }
             )
             logger.info(f"split {seed}: {results[-1]}")
