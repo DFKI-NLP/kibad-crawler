@@ -91,7 +91,22 @@ uv run kibad-crawler string-search-info
 
 uv run kibad-crawler download-open-access-files --help
 uv run kibad-crawler download-open-access-files <PATH_TO_RESULTS_FROM_STRING_SEARCH>
+
+uv run kibad-crawler cross-validate-semantic-filter --help
+uv run kibad-crawler cross-validate-semantic-filter --table ecosystem_services_habitats --objective f1
 ```
+
+## Semantic filter cross-validation
+
+Place the screening workbooks under `data/external/screening_tables/` using the
+paths listed in [`SCREENING_TABLES`](./src/kibad_crawler/evaluation/reference_papers.py).
+The command trains and evaluates the filter on five random 80:20 splits by
+default. It caches SPECTER2 embeddings, scores held-out papers with embeddings,
+and summarizes the metrics and embedding coverage across splits.
+
+Training maximizes accuracy by default. Use `--objective f1` to optimize F1
+and `--results-dir` to change the parent directory for reports. The default
+report path is `evaluation/results/semantic_filter/<table>_<objective>.md`.
 
 ## Open-access PDFs
 

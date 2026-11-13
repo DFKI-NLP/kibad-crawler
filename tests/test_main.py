@@ -224,3 +224,49 @@ def test_evaluate_search_queries(crawler, tmp_path, monkeypatch):
     assert "Release `2026-08-25`, 1 papers" in report
     assert "| in the publication venues |        1 |              1 |" in report
     assert "nan" not in report
+
+
+def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
+    rows = {"doi": ["a", "b", "c", "d"], "included": [1, 0, None, 1], "source_file": "t.xlsx"}
+    monkeypatch.setattr(
+        main, "read_screening_tables", lambda tables_dir, tables: pd.DataFrame(rows)
+    )
+    calls = []
+
+    def fake_cross_validation(dois, labels, n_splits, objective):
+        calls.append((dois, labels, n_splits, objective))
+        metrics = {
+            "accuracy": (0.8, 0.05),
+            "precision": (0.75, 0.0),
+            "recall": (0.6, 0.0),
+            "f1": (2 / 3, 0.0),
+        }
+        return {"coverage": (0.9, 0.025), "metrics": {"trained": metrics, "random": metrics}}
+
+    monkeypatch.setattr(main.SemanticFilter, "cross_validation", fake_cross_validation)
+    results_dir = tmp_path / "custom-results"
+
+    result = runner.invoke(
+        main.app,
+        [
+            "cross-validate-semantic-filter",
+            "--table",
+            "ecosystem_services_habitats",
+            "--n-splits",
+            "3",
+            "--objective",
+            "f1",
+            "--results-dir",
+            str(results_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    # the paper without a decision is left out
+    assert calls == [(["a", "b", "d"], [True, False, True], 3, "f1")]
+    report = results_dir / "semantic_filter" / "ecosystem_services_habitats_f1.md"
+    contents = report.read_text()
+    assert "Training maximized `f1`." in contents
+    assert "| trained | 0.800 ± 0.050 |" in contents
+    assert "| random | 0.800 ± 0.050 | 0.750 ± 0.000 | 0.600 ± 0.000 | 0.667 ± 0.000 |" in contents
+    assert "0.900 ± 0.025" in contents

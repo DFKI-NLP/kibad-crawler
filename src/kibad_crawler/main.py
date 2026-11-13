@@ -11,7 +11,9 @@ from kibad_crawler.basic_filter import execute_all_search_queries_sift
 from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
+    SCREENING_TABLES_DIR,
     get_reference_papers,
+    read_screening_tables,
 )
 from kibad_crawler.evaluation.search_results import (
     build_collection,
@@ -26,6 +28,7 @@ from kibad_crawler.papers import (
     get_publication_venue_ids,
 )
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
+from kibad_crawler.semantic_filter import SemanticFilter
 from kibad_crawler.semantic_scholar import datasets
 from kibad_crawler.utils import get_file_name
 
@@ -510,3 +513,77 @@ def evaluate_search_queries(
             encoding="utf-8",
         )
         logger.info(f"results of {tables.name} saved to '{output_path}'")
+
+
+@app.command()
+def cross_validate_semantic_filter(
+    table: Annotated[
+        str,
+        typer.Option(
+            help="Name of the screening tables in `SCREENING_TABLES`, e.g. 'ecosystem_services_habitats'."
+        ),
+    ],
+    n_splits: Annotated[int, typer.Option(help="Number of random 80:20 splits.")] = 5,
+    objective: Annotated[
+        str, typer.Option(help="Training metric to maximize, e.g. 'accuracy' or 'f1'.")
+    ] = "accuracy",
+    results_dir: Annotated[Path, typer.Option()] = PROJ_ROOT / "evaluation" / "results",
+) -> None:
+    """Train and evaluate the semantic filter on the screened papers of one
+    screening table.
+
+    Workflow:
+
+    1. Read the papers of the table that have a DOI and a screening decision.
+
+    2. Request their SPECTER2 embeddings from the Academic Graph API, reusing
+    the ones in `data/interim/semantic_filter/embeddings.json`.
+
+    3. For each of --n-splits random splits, estimate the hyperparameters on 80
+    per cent of the papers and evaluate on the other 20 per cent.
+
+    The report with the mean and standard deviation of the metrics is saved in
+    `<results-dir>/semantic_filter/<table>_<objective>.md`.
+    Coverage is the fraction of test papers with an embedding.
+    The baselines keep all papers, keep none, or randomly keep the same number
+    as the filter from the papers with embeddings.
+
+    Args:
+        table: Name of the screening table to evaluate.
+        n_splits: Number of random train/test splits.
+        objective: Metric to maximize when training the filter.
+        results_dir: Parent directory for the semantic filter report.
+    """
+    tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
+    df = read_screening_tables(SCREENING_TABLES_DIR, tables)
+    df = df[df["included"].notna()]
+    dois, labels = df["doi"].tolist(), (df["included"] == 1).tolist()
+    logger.info(f"{len(dois):,} screened papers, {sum(labels):,} of them relevant")
+
+    results = SemanticFilter.cross_validation(
+        dois,
+        labels,
+        n_splits=n_splits,
+        objective=objective,
+    )
+    coverage_mean, coverage_std = results["coverage"]
+    rows = []
+    metric_names = ("accuracy", "precision", "recall", "f1")
+    for method, metrics in results["metrics"].items():
+        cells = [f"{metrics[name][0]:.3f} ± {metrics[name][1]:.3f}" for name in metric_names]
+        rows.append("| " + " | ".join([method, *cells]) + " |")
+    metrics_table = "\n".join(rows)
+    output_path = results_dir / "semantic_filter" / f"{table}_{objective}.md"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        f"# Semantic filter: {table}\n\n"
+        f"{len(dois):,} screened papers, {sum(labels):,} of them relevant, "
+        f"{n_splits} random 80:20 splits.\n"
+        f"Training maximized `{objective}`.\n\n"
+        f"Embedding coverage (mean ± standard deviation) is "
+        f"{coverage_mean:.3f} ± {coverage_std:.3f}.\n\n"
+        "| Method | Accuracy | Precision | Recall | F1 |\n"
+        f"|---|---|---|---|---|\n{metrics_table}\n",
+        encoding="utf-8",
+    )
+    logger.info(f"results saved to '{output_path}'")
