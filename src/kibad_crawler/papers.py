@@ -5,6 +5,7 @@ import gzip
 import json
 import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from loguru import logger
 import pandas as pd
@@ -255,96 +256,73 @@ def download_open_access_pdf(
     file_name: str,
     chunk_size: int = 8 * 1024 * 1024,
     overwrite: bool = False,
-) -> Path:
-    """Download file from a `url` and stores it to a `path`.
-
-    Args:
-        url (str): URL to the file.
-        path (Path): Path where to store the downloaded file.
-        file_name (str): Name of the file which will be f"{paperId}.pdf"
-        chunk_size (int, optional): Size of chunks to store. Defaults to 10*1024.
-        overwrite (bool, optional): Whether or not overwrite a file that
-            has been already downloaded. Defaults to False.
-
-    Returns:
-        Path: Path to the stored file.
-    """
+) -> Path | None:
+    """Download and validate a PDF, returning its path when available."""
     path.mkdir(parents=True, exist_ok=True)
     out_path = path / file_name
 
-    if not overwrite and out_path.exists():
+    if not overwrite and out_path.exists() and _is_valid_pdf(out_path):
         logger.info(f"{file_name} - already downloaded")
         return out_path
 
     logger.info(f"{file_name} - downloading '{url}' -> '{out_path}'")
-
     with requests.get(url, stream=True, allow_redirects=True, timeout=60) as response:
-        logger.info(f"{file_name} - {response.status_code} status code")
         if response.status_code == 403:
-            return out_path
+            logger.warning(f"{file_name} - HTTP 403 for '{url}'")
+            return None
         response.raise_for_status()
-        with open(out_path, mode="wb") as f:
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                f.write(chunk)
 
-    logger.info(
-        f"{file_name} - downloaded {get_human_readable_size(int(response.headers['Content-Length']))}"
-    )
-    if not _is_valid_pdf(pdf_path=out_path):
-        out_path.unlink()
-        logger.error(f"{file_name} - deleting '{out_path}' invalid PDF file.")
+        tmp_file = NamedTemporaryFile(
+            dir=path, prefix=f".{file_name}.", suffix=".tmp", delete=False
+        )
+        tmp_path = Path(tmp_file.name)
+        try:
+            with tmp_file:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    tmp_file.write(chunk)
+            if not _is_valid_pdf(tmp_path):
+                logger.warning(f"{file_name} - response from '{url}' is not a valid PDF")
+                return None
+            tmp_path.replace(out_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
 
+    logger.info(f"{file_name} - downloaded {get_human_readable_size(out_path.stat().st_size)}")
     return out_path
 
 
 def download_open_access_pdfs(input_path: Path):
-    """Handles the downloading of all the papers from in a directory. It
-    expects JSON files with semantic scholar structure including columns such
-    as: ["paperId", "openAccessPdf.url", "isOpenAccess", "openAccessPdf.url"]
+    """Download open-access PDFs listed in Semantic Scholar JSON metadata.
 
-    Args:
-        input_path (Path): Path where to find JSON files with paper metadata.
-        release_id (str): Release to generate then output folder to save the
-            files.
+    Read paperId, isOpenAccess and openAccessPdf.url from each record. Save
+    the PDFs in the open_access_pdf subdirectory of input_path.
     """
-    # Find all the JSON files with paper metadata from semantic scholar
-    files = [x for x in Path(input_path).glob("**/*.json")]
+    urls_by_paper: dict[str, dict[str, None]] = {}
+    for file in input_path.rglob("*.json"):
+        with file.open(encoding="utf-8") as f:
+            records = json.load(f)
 
-    if len(files) == 0:
-        logger.info(f"Finished. No papers to download found in '{input_path}'")
+        for record in records:
+            if not isinstance(record, dict) or record.get("isOpenAccess") is not True:
+                continue
+            paper_id = record.get("paperId")
+            pdf = record.get("openAccessPdf")
+            url = pdf.get("url") if isinstance(pdf, dict) else None
+            if isinstance(paper_id, str) and paper_id and isinstance(url, str) and url.strip():
+                urls_by_paper.setdefault(paper_id, {})[url.strip()] = None
 
-    dfs = []
-    papers_found = 0
-    for file in files:
-        with open(file, encoding="utf-8") as f:
-            data = json.load(f)
+    if not urls_by_paper:
+        logger.info(f"No open-access PDFs listed in '{input_path}'")
+        return
 
-        df_aux = pd.json_normalize(data)
-        papers_found += df_aux.shape[0]
-        dfs.append(df_aux)
-
-    logger.info(f"{papers_found:,} papers found in '{input_path}'")
-
-    # Expects semantic scholar columns ["paperId", "openAccessPdf.url", "isOpenAccess", "openAccessPdf.url"]
-    df = pd.concat(dfs)
-    df.reset_index(drop=True, inplace=True)
-    df = df[
-        (df["openAccessPdf.url"].map(lambda x: len(x) > 0)) & (df["isOpenAccess"].map(lambda x: x))
-    ]
-    df = df[["paperId", "openAccessPdf.url"]].drop_duplicates()
-    df.reset_index(drop=True, inplace=True)
-
-    logger.info(f"{df.shape[0]:,} open access papers to be downloaded")
-
-    # directory to save the PDF files
     output_dir = input_path / "open_access_pdf"
-
-    # sequential download of the files
-    for _, r in df.iterrows():
-        download_open_access_pdf(
-            url=r["openAccessPdf.url"], path=output_dir, file_name=f'{r["paperId"]}.pdf'
-        )
+    available = 0
+    for paper_id, urls in urls_by_paper.items():
+        for url in urls:
+            if download_open_access_pdf(url=url, path=output_dir, file_name=f"{paper_id}.pdf"):
+                available += 1
+                break
 
     logger.info(
-        f"PDF Download successfully finished! {len(list(output_dir.glob("**/*.pdf"))):,} out of {df.shape[0]:,} papers downloaded"
+        f"{available:,} of {len(urls_by_paper):,} open-access PDFs available in '{output_dir}'"
     )
