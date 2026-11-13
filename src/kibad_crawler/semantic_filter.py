@@ -333,7 +333,6 @@ class SemanticFilter:
         cls,
         dois: list[str],
         labels: list[bool],
-        model_dir: Path,
         n_splits: int = 5,
         objective: str = "accuracy",
     ) -> CrossValidationResult:
@@ -342,7 +341,6 @@ class SemanticFilter:
         Args:
             dois (list[str]): DOIs of the screened papers.
             labels (list[bool]): True for the papers screened as relevant.
-            model_dir (Path): Folder for the filter of each split.
             n_splits (int, optional): Number of splits. Defaults to 5.
             objective (str, optional): Training metric to maximize. Defaults to "accuracy".
 
@@ -357,9 +355,7 @@ class SemanticFilter:
             train_dois, train_labels, test_dois, test_labels = cls.create_splits(
                 dois, labels, seed=seed
             )
-            split_dir = model_dir / f"split_{seed}"
             model = cls.train(train_dois, train_labels, objective=objective)
-            model.save(split_dir)
             predictions = model.predict(test_dois)
             scorable_predictions, scorable_labels = _scorable_predictions_and_labels(
                 predictions, test_labels

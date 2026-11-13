@@ -207,28 +207,25 @@ def test_create_splits_rejects_duplicate_dois():
         SemanticFilter.create_splits(["10.1/paper", " 10.1/PAPER "], [True, False])
 
 
-def test_cross_validation_requires_two_embeddings_per_class(embeddings, tmp_path):
+def test_cross_validation_requires_two_embeddings_per_class(embeddings):
     dois = ["r1", "missing", "n1", "n2", "n3"]
     labels = [True, True, False, False, False]
 
     with pytest.raises(ValueError, match="Found 1 relevant and 2 irrelevant"):
-        SemanticFilter.cross_validation(dois, labels, tmp_path, n_splits=1)
-
-    assert not (tmp_path / "split_0").exists()
+        SemanticFilter.cross_validation(dois, labels, n_splits=1)
 
 
-def test_cross_validation(embeddings, tmp_path):
-    results = SemanticFilter.cross_validation(DOIS, LABELS, tmp_path, n_splits=3)
+def test_cross_validation(embeddings):
+    results = SemanticFilter.cross_validation(DOIS, LABELS, n_splits=3)
 
     assert results["coverage"] == (1.0, 0.0)
     assert set(results["metrics"]) == {"trained", "keep_all", "keep_none", "random"}
     for metrics in results["metrics"].values():
         assert set(metrics) == {"accuracy", "precision", "recall", "f1"}
         assert all(len(value) == 2 for value in metrics.values())
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["split_0", "split_1", "split_2"]
 
 
-def test_cross_validation_scores_baselines_on_scorable_papers(monkeypatch, tmp_path):
+def test_cross_validation_scores_baselines_on_scorable_papers(monkeypatch):
     test_dois = ["a", "b", "c", "d", "missing"]
     test_labels = [True, True, False, False, True]
     monkeypatch.setattr(
@@ -239,7 +236,7 @@ def test_cross_validation_scores_baselines_on_scorable_papers(monkeypatch, tmp_p
         SemanticFilter, "predict", lambda self, dois: [True, True, False, False, None]
     )
 
-    results = SemanticFilter.cross_validation(test_dois, test_labels, tmp_path, n_splits=1)
+    results = SemanticFilter.cross_validation(test_dois, test_labels, n_splits=1)
 
     assert results["coverage"] == (0.8, 0.0)
     assert results["metrics"] == {

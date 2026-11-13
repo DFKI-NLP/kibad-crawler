@@ -8,7 +8,7 @@ from rich import print as print_rich
 import typer
 
 from kibad_crawler.basic_filter import execute_all_search_queries_sift
-from kibad_crawler.config import INTERIM_DATA_DIR, PROJ_ROOT, RAW_DATA_DIR
+from kibad_crawler.config import PROJ_ROOT, RAW_DATA_DIR
 from kibad_crawler.evaluation.reference_papers import (
     SCREENING_TABLES,
     SCREENING_TABLES_DIR,
@@ -542,7 +542,6 @@ def cross_validate_semantic_filter(
     3. For each of --n-splits random splits, estimate the hyperparameters on 80
     per cent of the papers and evaluate on the other 20 per cent.
 
-    The filter of each split is saved in `data/interim/semantic_filter/<table>/`.
     The report with the mean and standard deviation of the metrics is saved in
     `<results-dir>/semantic_filter/<table>_<objective>.md`.
     Coverage is the fraction of test papers with an embedding.
@@ -558,7 +557,6 @@ def cross_validate_semantic_filter(
     results = SemanticFilter.cross_validation(
         dois,
         labels,
-        model_dir=INTERIM_DATA_DIR / "semantic_filter" / table,
         n_splits=n_splits,
         objective=objective,
     )
