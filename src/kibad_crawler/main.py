@@ -549,7 +549,7 @@ def cross_validate_semantic_filter(
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
     df = read_screening_tables(SCREENING_TABLES_DIR, tables)
-    df = df[df["included"].notna()].drop_duplicates(subset=["doi"])
+    df = df[df["included"].notna()]
     dois, labels = df["doi"].tolist(), (df["included"] == 1).tolist()
     logger.info(f"{len(dois):,} screened papers, {sum(labels):,} of them relevant")
 

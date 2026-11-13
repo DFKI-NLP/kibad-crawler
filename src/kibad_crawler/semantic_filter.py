@@ -291,7 +291,13 @@ class SemanticFilter:
         Returns:
             tuple[list[str], list[bool], list[str], list[bool]]: DOIs and
                 labels of the training part, then of the test part.
+
+        Raises:
+            ValueError: If DOIs repeat after trimming whitespace and lowercasing.
         """
+        if len({doi.strip().lower() for doi in dois}) != len(dois):
+            raise ValueError("Cannot split papers with duplicate DOIs")
+
         order = np.random.default_rng(seed).permutation(len(dois))
         n_test = round(len(dois) * test_size)
         test, train = order[:n_test], order[n_test:]

@@ -191,6 +191,11 @@ def test_create_splits():
     assert SemanticFilter.create_splits(dois, labels, seed=2)[2] != test_dois
 
 
+def test_create_splits_rejects_duplicate_dois():
+    with pytest.raises(ValueError, match="duplicate DOIs"):
+        SemanticFilter.create_splits(["10.1/paper", " 10.1/PAPER "], [True, False])
+
+
 def test_cross_validation_requires_two_embeddings_per_class(embeddings, tmp_path):
     dois = ["r1", "missing", "n1", "n2", "n3"]
     labels = [True, True, False, False, False]
@@ -202,10 +207,7 @@ def test_cross_validation_requires_two_embeddings_per_class(embeddings, tmp_path
 
 
 def test_cross_validation(embeddings, tmp_path):
-    dois = DOIS + ["r1", "n1", "r2"]
-    labels = [doi.startswith("r") for doi in dois]
-
-    results = SemanticFilter.cross_validation(dois, labels, tmp_path, n_splits=3)
+    results = SemanticFilter.cross_validation(DOIS, LABELS, tmp_path, n_splits=3)
 
     assert set(results) == {
         "accuracy",
