@@ -1,6 +1,6 @@
 # forest
 
-Screening tables: `Wald-ASReview-Alle.xlsx`, `Wald-asreview-erste-haelfte.xlsx`, `Wald-asreview-zweite-haelfte.xlsx`, `Wald-ÖSL-zusätzlich.csv`.
+Screening tables: `Wald-asreview-erste-haelfte.xlsx`, `Wald-asreview-zweite-haelfte.xlsx`, `Wald-ÖSL-zusätzlich.csv`.
 
 Release `2024-12-31`, 4,220,603 papers, publication venues of `ISSN.csv`, papers published until 2022-12-31.
 
