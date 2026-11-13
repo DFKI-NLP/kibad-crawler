@@ -20,6 +20,7 @@ from kibad_crawler.evaluation.search_results import (
 )
 from kibad_crawler.papers import (
     PaperSearch,
+    download_open_access_pdfs,
     get_papers,
     get_papers_from_files,
     get_publication_venue_ids,
@@ -406,6 +407,28 @@ def string_search_info():
         print_rich(
             f"{query.query.replace('OR', '[yellow]OR[/yellow]').replace('AND', '[red]\nAND\n[/red]').replace('(', '[yellow]([/yellow]').replace(')', '[yellow])[/yellow]')}"
         )
+
+
+@app.command()
+def download_open_access_files(
+    input_path: Annotated[
+        Path,
+        typer.Argument(
+            help="Directory containing JSON files with Semantic Scholar paper metadata."
+        ),
+    ],
+):
+    """Download open-access PDFs for the papers listed in a metadata directory.
+
+    Run download-paper-metadata and then run-string-searches to select papers
+    by title and abstract. Pass the search-results directory to this command.
+    Other Semantic Scholar metadata directories with paper IDs and open-access
+    PDF URLs can also be used.
+
+    PDFs are saved in the open_access_pdf subdirectory of the input directory.
+    """
+    logger.info(f"Searching for paper metadata in '{input_path}'")
+    download_open_access_pdfs(input_path=input_path)
 
 
 if __name__ == "__main__":

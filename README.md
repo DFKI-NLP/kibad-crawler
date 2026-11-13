@@ -18,9 +18,9 @@ flowchart LR
     paper_dataset --> filter_dates{Filter paper metadata by publication_id and publication dates}
     filter_dates --> abstract_dataset(Download paper's **abstracts** using S2 API)
     abstract_dataset --> search_string{Query Search filter using title and abstract}
+    search_string --> download_pdf(Download PDF)
     end
     subgraph To be implemented
-    search_string --> download_pdf(Download PDF)
     download_pdf --> relevance_filter{Relevance Filter using content}
     relevance_filter --> postprocessing(Postprocessing)
     end
@@ -88,7 +88,18 @@ uv run kibad-crawler run-string-searches --release YYYY-MM-DD
 
 uv run kibad-crawler string-search-info --help
 uv run kibad-crawler string-search-info
+
+uv run kibad-crawler download-open-access-files --help
+uv run kibad-crawler download-open-access-files <PATH_TO_RESULTS_FROM_STRING_SEARCH>
 ```
+
+## Open-access PDFs
+
+Pass the directory of JSON results from `run-string-searches` to download
+open-access PDFs for the papers selected by keyword search. The command reads
+the paper IDs and PDF URLs from the JSON and saves the files under
+`open_access_pdf/` within that directory. It also accepts other directories
+containing compatible Semantic Scholar metadata.
 
 ## Download algorithm
 

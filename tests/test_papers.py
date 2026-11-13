@@ -1,9 +1,12 @@
 import gzip
+from io import BytesIO
 import json
 from pathlib import Path
 
 import pandas as pd
+from pypdf import PdfWriter
 import pytest
+import requests
 
 from kibad_crawler import papers
 from kibad_crawler.semantic_scholar import academic_graph
@@ -395,3 +398,70 @@ def test_get_abstracts_with_existing_batches(
 
     # the JSON files are written through a temporary file that is renamed
     assert list(json_path.glob("*.tmp")) == []
+
+
+def test_download_open_access_pdfs_skips_missing_urls(tmp_path, monkeypatch):
+    records = [
+        {"paperId": "closed", "isOpenAccess": False, "openAccessPdf": None},
+        {"paperId": "missing", "isOpenAccess": True, "openAccessPdf": {"url": None}},
+        {
+            "paperId": "open",
+            "isOpenAccess": True,
+            "openAccessPdf": {"url": "https://example.org/p.pdf"},
+        },
+    ]
+    (tmp_path / "papers.json").write_text(json.dumps(records), encoding="utf-8")
+    (tmp_path / "duplicate.json").write_text(json.dumps(records[-1:]), encoding="utf-8")
+    calls = []
+
+    def download(url, path, file_name):
+        calls.append((url, path, file_name))
+        return path / file_name
+
+    monkeypatch.setattr(papers, "download_open_access_pdf", download)
+
+    papers.download_open_access_pdfs(tmp_path)
+
+    assert calls == [("https://example.org/p.pdf", tmp_path / "open_access_pdf", "open.pdf")]
+
+
+def test_download_open_access_pdfs_accepts_empty_results(tmp_path):
+    papers.download_open_access_pdfs(tmp_path)
+    (tmp_path / "no-matches.json").write_text("[]", encoding="utf-8")
+    papers.download_open_access_pdfs(tmp_path)
+
+    assert not (tmp_path / "open_access_pdf").exists()
+
+
+def test_download_open_access_pdf_retries_interrupted_stream(
+    tmp_path, monkeypatch, make_response, no_retry_delay
+):
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    buffer = BytesIO()
+    writer.write(buffer)
+    pdf_bytes = buffer.getvalue()
+    attempts = []
+    output = tmp_path / "paper.pdf"
+
+    def interrupted_stream(**kwargs):
+        yield pdf_bytes[:20]
+        raise requests.exceptions.ChunkedEncodingError("interrupted stream")
+
+    def get(url, **kwargs):
+        attempts.append(url)
+        assert list(tmp_path.iterdir()) == []
+        response = make_response(content=pdf_bytes)
+        if len(attempts) == 1:
+            monkeypatch.setattr(response, "iter_content", interrupted_stream)
+        return response
+
+    monkeypatch.setattr(papers.requests, "get", get)
+
+    assert (
+        papers.download_open_access_pdf("https://example.org/p.pdf", tmp_path, output.name)
+        == output
+    )
+    assert len(attempts) == 2
+    assert output.read_bytes() == pdf_bytes
+    assert list(tmp_path.iterdir()) == [output]
