@@ -238,8 +238,8 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
         return {"accuracy": (0.8, 0.05), "coverage": (0.9, 0.025)}
 
     monkeypatch.setattr(main.SemanticFilter, "cross_validation", fake_cross_validation)
-    monkeypatch.setattr(main, "PROJ_ROOT", tmp_path)
     monkeypatch.setattr(main, "INTERIM_DATA_DIR", tmp_path / "interim")
+    results_dir = tmp_path / "custom-results"
 
     result = runner.invoke(
         main.app,
@@ -251,6 +251,8 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
             "3",
             "--objective",
             "f1",
+            "--results-dir",
+            str(results_dir),
         ],
     )
 
@@ -259,7 +261,7 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
     assert calls == [
         (["a", "b", "d"], [True, False, True], "ecosystem_services_habitats", 3, "f1")
     ]
-    report = tmp_path / "evaluation" / "results" / "semantic_filter_ecosystem_services_habitats.md"
+    report = results_dir / "semantic_filter" / "ecosystem_services_habitats_f1.md"
     contents = report.read_text()
     assert "Training maximized `f1`." in contents
     assert "| accuracy | 0.800 | 0.050 |" in contents

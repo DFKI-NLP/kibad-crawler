@@ -527,6 +527,7 @@ def cross_validate_semantic_filter(
     objective: Annotated[
         str, typer.Option(help="Training metric to maximize, e.g. 'accuracy' or 'f1'.")
     ] = "accuracy",
+    results_dir: Annotated[Path, typer.Option()] = PROJ_ROOT / "evaluation" / "results",
 ):
     """Train and evaluate the semantic filter on the screened papers of one
     screening table.
@@ -541,9 +542,9 @@ def cross_validate_semantic_filter(
     3. For each of --n-splits random splits, estimate the hyperparameters on 80
     per cent of the papers and evaluate on the other 20 per cent.
 
-    Output (under the project root): the filter of each split in
-    `data/interim/semantic_filter/<table>/`, and the mean and standard deviation of
-    the metrics in `evaluation/results/semantic_filter_<table>.md`.
+    The filter of each split is saved in `data/interim/semantic_filter/<table>/`.
+    The report with the mean and standard deviation of the metrics is saved in
+    `<results-dir>/semantic_filter/<table>_<objective>.md`.
     Coverage is the fraction of test papers with an embedding.
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
@@ -562,7 +563,7 @@ def cross_validate_semantic_filter(
     rows = "\n".join(
         f"| {name} | {mean:.3f} | {std:.3f} |" for name, (mean, std) in results.items()
     )
-    output_path = PROJ_ROOT / "evaluation" / "results" / f"semantic_filter_{table}.md"
+    output_path = results_dir / "semantic_filter" / f"{table}_{objective}.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         f"# Semantic filter: {table}\n\n"
