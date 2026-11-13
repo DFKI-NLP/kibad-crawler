@@ -266,12 +266,12 @@ class SemanticFilter:
     def load(cls, model_dir: Path) -> "SemanticFilter":
         """Read a filter written by `save`."""
         hyperparameters = json.loads((model_dir / "hyperparameters.json").read_text())
-        vectors = np.load(model_dir / "vectors.npz")
-        return cls(
-            **hyperparameters,
-            positive_vectors=vectors["positive"],
-            negative_vectors=vectors["negative"],
-        )
+        with np.load(model_dir / "vectors.npz") as vectors:
+            return cls(
+                **hyperparameters,
+                positive_vectors=vectors["positive"],
+                negative_vectors=vectors["negative"],
+            )
 
     def evaluate(self, dois: list[str], labels: list[bool]) -> dict[str, float]:
         """Compare the filter's predictions with the screening.
