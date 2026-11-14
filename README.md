@@ -104,9 +104,14 @@ The command trains and evaluates the filter on five random 80:20 splits by
 default. It caches SPECTER2 embeddings, scores held-out papers with embeddings,
 and summarizes the metrics and embedding coverage across splits.
 
-Training maximizes accuracy by default. Use `--objective f1` to optimize F1
-and `--results-dir` to change the parent directory for reports. The default
-report path is `evaluation/results/semantic_filter/<table>_<objective>.md`.
+The command defaults to ridge classification with a cutoff tuned for F1. Use
+`--objective accuracy` to optimize accuracy, or `--method similarity` to run
+the original maximum-similarity filter. Ridge reports go to
+`evaluation/results/semantic_filter/<table>_ridge_<objective>.md`. Use
+`--results-dir` to change their parent directory.
+
+See the [evaluation and reproduction instructions](evaluation/results/semantic_filter/ridge.md)
+for the comparison with the original filter.
 
 ## Open-access PDFs
 

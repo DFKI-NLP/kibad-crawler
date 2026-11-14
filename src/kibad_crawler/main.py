@@ -28,7 +28,7 @@ from kibad_crawler.papers import (
     get_publication_venue_ids,
 )
 from kibad_crawler.search_queries import ALL_SEARCH_QUERIES
-from kibad_crawler.semantic_filter import SemanticFilter
+from kibad_crawler.semantic_filter import FilterMethod, SemanticFilter
 from kibad_crawler.semantic_scholar import datasets
 from kibad_crawler.utils import get_file_name
 
@@ -526,8 +526,9 @@ def cross_validate_semantic_filter(
     n_splits: Annotated[int, typer.Option(help="Number of random 80:20 splits.")] = 5,
     objective: Annotated[
         str, typer.Option(help="Training metric to maximize, e.g. 'accuracy' or 'f1'.")
-    ] = "accuracy",
+    ] = "f1",
     results_dir: Annotated[Path, typer.Option()] = PROJ_ROOT / "evaluation" / "results",
+    method: Annotated[FilterMethod, typer.Option(help="Scoring method.")] = FilterMethod.RIDGE,
 ) -> None:
     """Train and evaluate the semantic filter on the screened papers of one
     screening table.
@@ -543,7 +544,8 @@ def cross_validate_semantic_filter(
     per cent of the papers and evaluate on the other 20 per cent.
 
     The report with the mean and standard deviation of the metrics is saved in
-    `<results-dir>/semantic_filter/<table>_<objective>.md`.
+    `<results-dir>/semantic_filter/<table>_ridge_<objective>.md` for ridge or
+    `<results-dir>/semantic_filter/<table>_<objective>.md` for similarity.
     Coverage is the fraction of test papers with an embedding.
     The baselines keep all papers, keep none, or randomly keep the same number
     as the filter from the papers with embeddings.
@@ -553,6 +555,7 @@ def cross_validate_semantic_filter(
         n_splits: Number of random train/test splits.
         objective: Metric to maximize when training the filter.
         results_dir: Parent directory for the semantic filter report.
+        method: Scoring method.
     """
     tables = next(tables for tables in SCREENING_TABLES if tables.name == table)
     df = read_screening_tables(SCREENING_TABLES_DIR, tables)
@@ -565,20 +568,23 @@ def cross_validate_semantic_filter(
         labels,
         n_splits=n_splits,
         objective=objective,
+        method=method,
     )
     coverage_mean, coverage_std = results["coverage"]
     rows = []
     metric_names = ("accuracy", "precision", "recall", "f1")
-    for method, metrics in results["metrics"].items():
+    for label, metrics in results["metrics"].items():
         cells = [f"{metrics[name][0]:.3f} ± {metrics[name][1]:.3f}" for name in metric_names]
-        rows.append("| " + " | ".join([method, *cells]) + " |")
+        rows.append("| " + " | ".join([label, *cells]) + " |")
     metrics_table = "\n".join(rows)
-    output_path = results_dir / "semantic_filter" / f"{table}_{objective}.md"
+    report_suffix = f"ridge_{objective}" if method == FilterMethod.RIDGE else objective
+    output_path = results_dir / "semantic_filter" / f"{table}_{report_suffix}.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         f"# Semantic filter: {table}\n\n"
         f"{len(dois):,} screened papers, {sum(labels):,} of them relevant, "
         f"{n_splits} random 80:20 splits.\n"
+        f"Scoring method was `{method}`.\n"
         f"Training maximized `{objective}`.\n\n"
         f"Embedding coverage (mean ± standard deviation) is "
         f"{coverage_mean:.3f} ± {coverage_std:.3f}.\n\n"

@@ -1,16 +1,15 @@
-"""Semantic filter that keeps the papers that are similar to papers screened as
-relevant and not similar to papers screened as not relevant.
+"""Filter papers using Semantic Scholar's SPECTER2 embeddings.
 
-Papers are represented by the SPECTER2 embeddings that the Academic Graph API
-of Semantic Scholar provides. A paper is scored by its highest cosine
-similarity to the relevant examples minus `alpha` times its highest similarity
-to the not relevant examples. The thresholds are estimated on screened papers
-of one screening table, since the examples of one table encode its own task.
+The ridge classifier learns a linear score from the embeddings of screened
+papers. The similarity classifier uses the maximum cosine similarity to each
+class. Train a filter per screening task.
 """
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import time
 from typing import Self, TypedDict
 
@@ -27,6 +26,14 @@ FIELDS = "paperId,embedding.specter_v2"
 DELAY_BETWEEN_BATCHES = 3
 ALPHAS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 N_THRESHOLDS = 21
+RIDGE_PENALTY = 0.3
+
+
+class FilterMethod(StrEnum):
+    """Scoring methods for the semantic filter."""
+
+    RIDGE = "ridge"
+    SIMILARITY = "similarity"
 
 
 class CrossValidationResult(TypedDict):
@@ -142,6 +149,15 @@ def _get_metrics(predictions: NDArray[np.bool_], labels: NDArray[np.bool_]) -> d
     }
 
 
+def _matched_random_predictions(predictions: NDArray[np.bool_], seed: int) -> NDArray[np.bool_]:
+    """Keep the same number of papers using a separate random stream from splitting."""
+    rng = np.random.default_rng([seed, 1])
+    chosen = rng.choice(len(predictions), size=int(predictions.sum()), replace=False)
+    random_predictions = np.zeros_like(predictions)
+    random_predictions[chosen] = True
+    return random_predictions
+
+
 def _get_training_scores(
     vectors: NDArray[np.floating], relevant: NDArray[np.bool_]
 ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
@@ -165,16 +181,73 @@ def _get_training_scores(
     return similarities[:, relevant].max(axis=1), similarities[:, ~relevant].max(axis=1)
 
 
+def _fit_ridge(
+    vectors: NDArray[np.floating], relevant: NDArray[np.bool_]
+) -> tuple[NDArray[np.floating], float]:
+    """Fit ridge regression to the 0/1 labels with an unpenalized intercept."""
+    center = vectors.mean(axis=0)
+    prevalence = float(relevant.mean())
+    centered = vectors - center
+    gram = centered.T @ centered + RIDGE_PENALTY * np.eye(centered.shape[1])
+    weights = np.linalg.solve(gram, centered.T @ (relevant - prevalence))
+    return weights, prevalence - float(center @ weights)
+
+
+def _calibration_folds(relevant: NDArray[np.bool_]) -> list[NDArray[np.bool_]]:
+    """Return held-out masks for up to three stratified training folds."""
+    n_folds = min(3, int(relevant.sum()), int((~relevant).sum()))
+    rng = np.random.default_rng(0)
+    folds = np.empty(len(relevant), dtype=int)
+    for label_mask in (relevant, ~relevant):
+        indices = rng.permutation(np.flatnonzero(label_mask))
+        folds[indices] = np.arange(len(indices)) % n_folds
+    return [folds == fold for fold in range(n_folds)]
+
+
+def _out_of_fold_ridge_scores(
+    vectors: NDArray[np.floating], relevant: NDArray[np.bool_]
+) -> NDArray[np.floating]:
+    """Score each training paper with a ridge model fitted on other folds."""
+    scores = np.empty(len(relevant))
+    for held_out in _calibration_folds(relevant):
+        weights, intercept = _fit_ridge(vectors[~held_out], relevant[~held_out])
+        scores[held_out] = vectors[held_out] @ weights + intercept
+    return scores
+
+
+def _select_threshold(
+    scores: NDArray[np.floating], relevant: NDArray[np.bool_], objective: str
+) -> float:
+    """Find the best score cutoff, keeping more papers when cutoffs tie."""
+    order = np.argsort(scores)[::-1]
+    sorted_scores = scores[order]
+    # Only evaluate cutoffs at which every paper with the same score is kept together.
+    ends = np.flatnonzero(np.r_[sorted_scores[:-1] != sorted_scores[1:], True])
+    kept = np.r_[0, ends + 1]
+    true_positives = np.r_[0, np.cumsum(relevant[order])[ends]]
+    n_relevant = int(relevant.sum())
+    values = {
+        "accuracy": (len(relevant) - n_relevant + 2 * true_positives - kept) / len(relevant),
+        "precision": true_positives / np.maximum(kept, 1),
+        "recall": true_positives / n_relevant,
+        "f1": 2 * true_positives / (kept + n_relevant),
+    }[objective]
+    thresholds = np.r_[np.inf, sorted_scores[ends]]
+    return float(thresholds[np.flatnonzero(values == values.max())[-1]])
+
+
 @dataclass
 class SemanticFilter:
-    """Store the thresholds and labeled examples used to filter papers.
+    """Store a fitted ridge or similarity filter.
 
     Attributes:
-        alpha: Weight of the maximum similarity to irrelevant examples.
+        alpha: Weight of the maximum similarity to irrelevant examples in the similarity filter.
         min_positive_similarity: Minimum similarity to a relevant example.
         min_margin: Minimum score after subtracting weighted irrelevant similarity.
-        positive_vectors: Relevant embeddings with one example per row.
-        negative_vectors: Irrelevant embeddings with one example per row.
+        positive_vectors: Relevant examples for the similarity filter.
+        negative_vectors: Irrelevant examples for the similarity filter.
+        weights: Ridge coefficients, or `None` for the similarity filter.
+        threshold: Cutoff for the ridge dot product, with the intercept absorbed.
     """
 
     alpha: float = 1.0
@@ -182,6 +255,8 @@ class SemanticFilter:
     min_margin: float = -3.0
     positive_vectors: NDArray[np.floating] = field(default_factory=lambda: np.empty((0, 0)))
     negative_vectors: NDArray[np.floating] = field(default_factory=lambda: np.empty((0, 0)))
+    weights: NDArray[np.floating] | None = None
+    threshold: float = 0.0
 
     def _keep(
         self, positive_scores: NDArray[np.floating], negative_scores: NDArray[np.floating]
@@ -199,6 +274,15 @@ class SemanticFilter:
         scores = positive_scores - self.alpha * negative_scores
         return (positive_scores >= self.min_positive_similarity) & (scores >= self.min_margin)
 
+    def _predict_vectors(self, vectors: NDArray[np.floating]) -> NDArray[np.bool_]:
+        """Classify papers with available embeddings."""
+        vectors = _normalize(vectors)
+        if self.weights is not None:
+            return vectors @ self.weights >= self.threshold
+        positive_scores = (vectors @ _normalize(self.positive_vectors).T).max(axis=1)
+        negative_scores = (vectors @ _normalize(self.negative_vectors).T).max(axis=1)
+        return self._keep(positive_scores, negative_scores)
+
     def predict(self, dois: list[str]) -> list[bool | None]:
         """Decide for each paper whether it is kept.
 
@@ -213,26 +297,30 @@ class SemanticFilter:
         predictions: list[bool | None] = [None] * len(dois)
         if not available.any():
             return predictions
-        vectors = _normalize(vectors)
-        positive_scores = (vectors @ _normalize(self.positive_vectors).T).max(axis=1)
-        negative_scores = (vectors @ _normalize(self.negative_vectors).T).max(axis=1)
-        scorable_predictions = self._keep(positive_scores, negative_scores)
-        for index, decision in zip(np.flatnonzero(available), scorable_predictions):
+        for index, decision in zip(np.flatnonzero(available), self._predict_vectors(vectors)):
             predictions[index] = bool(decision)
         return predictions
 
     @classmethod
-    def train(cls, dois: list[str], labels: list[bool], objective: str = "accuracy") -> Self:
-        """Fit thresholds that maximize the objective on screened papers.
+    def train(
+        cls,
+        dois: list[str],
+        labels: list[bool],
+        objective: str = "f1",
+        method: FilterMethod = FilterMethod.RIDGE,
+    ) -> Self:
+        """Fit a semantic filter using screened papers with embeddings.
 
-        Training compares each paper with the other examples. The returned model
-        uses all training papers with embeddings as examples.
+        The ridge cutoff is selected on out-of-fold scores. The similarity
+        filter tunes its thresholds by comparing each paper with the other
+        examples. The returned model is fitted on all available training papers.
 
         Args:
             dois: DOIs of the screened papers.
             labels: Relevance labels aligned with `dois`.
             objective: Metric to maximize, one of `accuracy`, `precision`,
                 `recall`, or `f1`.
+            method: Scoring method.
 
         Returns:
             The fitted filter.
@@ -243,6 +331,17 @@ class SemanticFilter:
         """
         vectors, available = _get_vectors(dois)
         relevant = np.array(labels, dtype=bool)[available]
+        return cls._fit(vectors, relevant, objective, method)
+
+    @classmethod
+    def _fit(
+        cls,
+        vectors: NDArray[np.floating],
+        relevant: NDArray[np.bool_],
+        objective: str,
+        method: FilterMethod,
+    ) -> Self:
+        """Fit the requested filter on aligned embeddings and screening labels."""
         n_relevant = int(relevant.sum())
         n_irrelevant = relevant.size - n_relevant
         if min(n_relevant, n_irrelevant) < 2:
@@ -252,6 +351,20 @@ class SemanticFilter:
             )
 
         vectors = _normalize(vectors)
+        if method == FilterMethod.RIDGE:
+            scores = _out_of_fold_ridge_scores(vectors, relevant)
+            threshold = _select_threshold(scores, relevant, objective)
+            weights, intercept = _fit_ridge(vectors, relevant)
+            return cls(weights=weights, threshold=threshold - intercept)
+        if method == FilterMethod.SIMILARITY:
+            return cls._fit_similarity(vectors, relevant, objective)
+        raise ValueError(f"Unknown semantic filter method {method!r}")
+
+    @classmethod
+    def _fit_similarity(
+        cls, vectors: NDArray[np.floating], relevant: NDArray[np.bool_], objective: str
+    ) -> Self:
+        """Fit the maximum-similarity classifier on normalized embeddings."""
         positive_scores, negative_scores = _get_training_scores(vectors, relevant)
 
         best = cls(positive_vectors=vectors[relevant], negative_vectors=vectors[~relevant])
@@ -284,15 +397,24 @@ class SemanticFilter:
         return best
 
     def save(self, model_dir: Path) -> None:
-        """Write hyperparameters to JSON and example vectors to a NumPy archive.
+        """Write the ridge coefficients and cutoff or the similarity examples and thresholds.
 
         Args:
-            model_dir: Directory for `hyperparameters.json` and `vectors.npz`.
+            model_dir: Directory for `vectors.npz` and the similarity filter's
+                `hyperparameters.json`.
 
         Raises:
             OSError: If the directory or model files cannot be written.
         """
         model_dir.mkdir(parents=True, exist_ok=True)
+        vectors_path = model_dir / "vectors.npz"
+        if self.weights is not None:
+            with TemporaryDirectory(dir=model_dir) as temporary:
+                output = Path(temporary) / vectors_path.name
+                np.savez(output, weights=self.weights, threshold=self.threshold)
+                output.replace(vectors_path)
+            return
+
         hyperparameters = {
             "alpha": self.alpha,
             "min_positive_similarity": self.min_positive_similarity,
@@ -300,17 +422,17 @@ class SemanticFilter:
         }
         (model_dir / "hyperparameters.json").write_text(json.dumps(hyperparameters, indent=2))
         np.savez(
-            model_dir / "vectors.npz",
+            vectors_path,
             positive=self.positive_vectors,
             negative=self.negative_vectors,
         )
 
     @classmethod
     def load(cls, model_dir: Path) -> Self:
-        """Read a filter written by `save`.
+        """Read a saved ridge or similarity filter, including models from #57.
 
         Args:
-            model_dir: Directory containing the hyperparameters and example vectors.
+            model_dir: Directory containing the saved model files.
 
         Returns:
             A filter reconstructed from the saved files.
@@ -318,8 +440,12 @@ class SemanticFilter:
         Raises:
             OSError: If a model file cannot be opened.
         """
-        hyperparameters = json.loads((model_dir / "hyperparameters.json").read_text())
         with np.load(model_dir / "vectors.npz") as vectors:
+            if "weights" in vectors:
+                return cls(
+                    weights=vectors["weights"], threshold=float(vectors["threshold"].item())
+                )
+            hyperparameters = json.loads((model_dir / "hyperparameters.json").read_text())
             return cls(
                 **hyperparameters,
                 positive_vectors=vectors["positive"],
@@ -385,7 +511,8 @@ class SemanticFilter:
         dois: list[str],
         labels: list[bool],
         n_splits: int = 5,
-        objective: str = "accuracy",
+        objective: str = "f1",
+        method: FilterMethod = FilterMethod.RIDGE,
     ) -> CrossValidationResult:
         """Train and evaluate on `n_splits` random splits.
 
@@ -394,6 +521,7 @@ class SemanticFilter:
             labels: Relevance labels aligned with `dois`.
             n_splits: Number of random splits.
             objective: Metric to maximize when fitting each split's model.
+            method: Scoring method.
 
         Returns:
             Mean and standard deviation of embedding coverage and each metric
@@ -413,20 +541,13 @@ class SemanticFilter:
             train_dois, train_labels, test_dois, test_labels = cls.create_splits(
                 dois, labels, seed=seed
             )
-            model = cls.train(train_dois, train_labels, objective=objective)
+            model = cls.train(train_dois, train_labels, objective=objective, method=method)
             predictions = model.predict(test_dois)
             scorable_predictions, scorable_labels = _scorable_predictions_and_labels(
                 predictions, test_labels
             )
             coverage.append(scorable_predictions.size / len(predictions))
 
-            random_predictions = np.zeros_like(scorable_predictions)
-            # Use a separate random stream from the train/test split.
-            rng = np.random.default_rng([seed, 1])
-            random_indices = rng.choice(
-                scorable_predictions.size, size=int(scorable_predictions.sum()), replace=False
-            )
-            random_predictions[random_indices] = True
             results.append(
                 {
                     "trained": _get_metrics(scorable_predictions, scorable_labels),
@@ -434,7 +555,9 @@ class SemanticFilter:
                     "keep_none": _get_metrics(
                         np.zeros_like(scorable_predictions), scorable_labels
                     ),
-                    "random": _get_metrics(random_predictions, scorable_labels),
+                    "random": _get_metrics(
+                        _matched_random_predictions(scorable_predictions, seed), scorable_labels
+                    ),
                 }
             )
             logger.info(f"split {seed}: {results[-1]}")

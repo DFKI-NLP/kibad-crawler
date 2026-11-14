@@ -1,5 +1,8 @@
 # Semantic filter cross-validation
 
+These are the results for the original maximum-similarity filter from #57.
+See the [ridge evaluation](ridge.md) for the current default classifier.
+
 The semantic filter uses SPECTER2 embeddings to find relevant papers while
 reducing the number of papers reviewers need to screen. We compared tuning its
 thresholds for accuracy and F1 on four screening tables. Relevant papers are
@@ -62,7 +65,8 @@ Run both objectives from the repository root.
 ```bash
 for objective in accuracy f1; do
     for table in ecosystem_services_habitats ecosystem_services_cross_section agricultural coast_trends; do
-        uv run kibad-crawler cross-validate-semantic-filter --table "$table" --objective "$objective"
+        uv run kibad-crawler cross-validate-semantic-filter \
+            --table "$table" --method similarity --objective "$objective"
     done
 done
 ```
