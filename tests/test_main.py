@@ -226,15 +226,28 @@ def test_evaluate_search_queries(crawler, tmp_path, monkeypatch):
     assert "nan" not in report
 
 
-def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    ("method_args", "expected_method", "report_name"),
+    [
+        ([], main.FilterMethod.RIDGE, "ecosystem_services_habitats_ridge_f1.md"),
+        (
+            ["--method", "similarity"],
+            main.FilterMethod.SIMILARITY,
+            "ecosystem_services_habitats_f1.md",
+        ),
+    ],
+)
+def test_cross_validate_semantic_filter(
+    tmp_path, monkeypatch, method_args, expected_method, report_name
+):
     rows = {"doi": ["a", "b", "c", "d"], "included": [1, 0, None, 1], "source_file": "t.xlsx"}
     monkeypatch.setattr(
         main, "read_screening_tables", lambda tables_dir, tables: pd.DataFrame(rows)
     )
     calls = []
 
-    def fake_cross_validation(dois, labels, n_splits, objective):
-        calls.append((dois, labels, n_splits, objective))
+    def fake_cross_validation(dois, labels, n_splits, objective, method):
+        calls.append((dois, labels, n_splits, objective, method))
         metrics = {
             "accuracy": (0.8, 0.05),
             "precision": (0.75, 0.0),
@@ -254,8 +267,7 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
             "ecosystem_services_habitats",
             "--n-splits",
             "3",
-            "--objective",
-            "f1",
+            *method_args,
             "--results-dir",
             str(results_dir),
         ],
@@ -263,9 +275,10 @@ def test_cross_validate_semantic_filter(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     # the paper without a decision is left out
-    assert calls == [(["a", "b", "d"], [True, False, True], 3, "f1")]
-    report = results_dir / "semantic_filter" / "ecosystem_services_habitats_f1.md"
+    assert calls == [(["a", "b", "d"], [True, False, True], 3, "f1", expected_method)]
+    report = results_dir / "semantic_filter" / report_name
     contents = report.read_text()
+    assert f"Scoring method was `{expected_method}`." in contents
     assert "Training maximized `f1`." in contents
     assert "| trained | 0.800 ± 0.050 |" in contents
     assert "| random | 0.800 ± 0.050 | 0.750 ± 0.000 | 0.600 ± 0.000 | 0.667 ± 0.000 |" in contents

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from kibad_crawler import semantic_filter
-from kibad_crawler.semantic_filter import SemanticFilter
+from kibad_crawler.semantic_filter import FilterMethod, SemanticFilter
 
 # relevant papers point along the first axis, not relevant ones along the second
 EMBEDDINGS = {
@@ -116,7 +116,7 @@ def test_predict_without_embeddings(embeddings):
 
 
 def test_train_compares_with_the_other_papers(embeddings):
-    model = SemanticFilter.train(DOIS, LABELS)
+    model = SemanticFilter.train(DOIS, LABELS, method=FilterMethod.SIMILARITY)
 
     # without leaving a paper out, every relevant paper has a similarity of 1
     # and the threshold would be the highest possible
@@ -134,8 +134,10 @@ def test_train_maximizes_selected_metric(embeddings, monkeypatch):
         semantic_filter, "_get_training_scores", lambda *_: (positive_scores, negative_scores)
     )
 
-    accuracy_model = SemanticFilter.train(DOIS, labels)
-    f1_model = SemanticFilter.train(DOIS, labels, objective="f1")
+    accuracy_model = SemanticFilter.train(
+        DOIS, labels, objective="accuracy", method=FilterMethod.SIMILARITY
+    )
+    f1_model = SemanticFilter.train(DOIS, labels, objective="f1", method=FilterMethod.SIMILARITY)
     accuracy_kept = accuracy_model._keep(positive_scores, negative_scores)
     f1_kept = f1_model._keep(positive_scores, negative_scores)
 
@@ -150,8 +152,10 @@ def test_train_considers_rejecting_all_when_scores_are_tied(monkeypatch):
         semantic_filter, "_get_embeddings", lambda dois: dict.fromkeys(dois, [1.0, 0.0])
     )
 
-    accuracy_model = SemanticFilter.train(dois, labels)
-    f1_model = SemanticFilter.train(dois, labels, objective="f1")
+    accuracy_model = SemanticFilter.train(
+        dois, labels, objective="accuracy", method=FilterMethod.SIMILARITY
+    )
+    f1_model = SemanticFilter.train(dois, labels, objective="f1", method=FilterMethod.SIMILARITY)
 
     assert accuracy_model.predict(dois) == [False] * len(dois)
     assert f1_model.predict(dois) == [True] * len(dois)
@@ -166,6 +170,43 @@ def test_save_and_load(tmp_path):
     assert (loaded.alpha, loaded.min_positive_similarity, loaded.min_margin) == (0.5, 0.7, 0.1)
     assert np.array_equal(loaded.positive_vectors, model.positive_vectors)
     assert np.array_equal(loaded.negative_vectors, model.negative_vectors)
+
+
+def test_ridge_save_and_load(tmp_path, embeddings):
+    model = SemanticFilter.train(DOIS, LABELS, objective="f1")
+    model_dir = tmp_path / "model"
+    SemanticFilter.train(DOIS, LABELS, method=FilterMethod.SIMILARITY).save(model_dir)
+    model.save(model_dir)
+    loaded = SemanticFilter.load(model_dir)
+
+    assert loaded.weights is not None
+    assert loaded.predict(["r2", "missing", "n2"]) == [True, None, False]
+
+
+def test_ridge_scores_are_out_of_fold(monkeypatch):
+    vectors = np.arange(12, dtype=float).reshape(6, 2)
+    relevant = np.array([True, True, True, False, False, False])
+    training_rows = []
+
+    def fake_fit(train_vectors, train_labels):
+        assert train_labels.sum() == (~train_labels).sum() == 2
+        training_rows.append(set(train_vectors[:, 0]))
+        return np.zeros(2), float(len(training_rows))
+
+    monkeypatch.setattr(semantic_filter, "_fit_ridge", fake_fit)
+    scores = semantic_filter._out_of_fold_ridge_scores(vectors, relevant)
+
+    for row, score in zip(vectors, scores):
+        assert row[0] not in training_rows[int(score) - 1]
+
+
+def test_ridge_thresholds_keep_equal_scores_together():
+    scores = np.array([0.2, 0.2, 0.2, 0.1, 0.1])
+    relevant = np.array([True, False, False, False, False])
+
+    assert semantic_filter._select_threshold(scores, relevant, "accuracy") == np.inf
+    assert semantic_filter._select_threshold(scores, relevant, "f1") == 0.2
+    assert semantic_filter._select_threshold(scores, relevant, "recall") == 0.1
 
 
 def test_evaluate(embeddings):
