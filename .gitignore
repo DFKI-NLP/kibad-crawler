@@ -212,6 +212,7 @@ data/*
 !data/raw/
 data/raw/*
 !data/raw/journals.csv
+!data/raw/ISSN.csv
 
 # macOS
 *._DStore
