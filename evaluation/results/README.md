@@ -4,7 +4,7 @@ Evaluation of the keyword filter (Tabelle 3) and the semantic filter (Tabelle 4)
 
 ## Data
 
-Follow the [project setup](../../README.md#setup). The crawl and the first run of the semantic filter need `S2_API_KEY`.
+Follow the [project setup](../../README.md#setup). Set `S2_API_KEY`.
 
 ### Screening tables
 
@@ -19,11 +19,11 @@ Two files are named differently in the Drive folder:
 | `Boden-Treiber_mark.xlsx`   | `Boden-Treiber.xlsx`              |
 
 `<search>_dois_s2.csv` has the DOIs of the screening tables with their Semantic Scholar paper id and publication venue id, resolved from 2026-10-02 to 2026-11-11.
-The evaluation reads these files and calls the API only for a search without such a file.
+`evaluate-search-queries` uses them and calls the API only for a missing file.
 
 ### Publication venues
 
-[`data/raw/ISSN.csv`](../../data/raw/ISSN.csv) has 1,280 ISSN codes, which match 1,139 publication venues in release `2024-12-31`.
+[`data/raw/ISSN.csv`](../../data/raw/ISSN.csv) has the ISSN codes of the publication venues.
 
 ## Keyword filter (Tabelle 3)
 
