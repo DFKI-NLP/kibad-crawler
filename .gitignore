@@ -213,6 +213,9 @@ data/*
 data/raw/*
 !data/raw/journals.csv
 !data/raw/ISSN.csv
+!data/external/
+data/external/*
+!data/external/screening_tables/
 
 # macOS
 *._DStore

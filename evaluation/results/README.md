@@ -8,16 +8,18 @@ Follow the [project setup](../../README.md#setup). The crawl and the first run o
 
 ### Screening tables
 
-The screening tables are in the Google Drive folder [ASReview Faktencheck](https://drive.google.com/drive/folders/1v-vkFmrz2BpB0z3OeH9bjgYN6PJiUKcZ).
-`Boden-Maßnahmen.xlsx` is not in that folder. It is in `Screening Tabellen/` of the [ownCloud share](https://cloud.dfki.de/owncloud/index.php/s/emiJLtgSqA4xMcP).
-
-Copy them to `data/external/screening_tables/` using the paths in [`SCREENING_TABLES`](../../src/kibad_crawler/evaluation/reference_papers.py).
+The screening tables are in [`data/external/screening_tables/`](../../data/external/screening_tables/) at the paths in [`SCREENING_TABLES`](../../src/kibad_crawler/evaluation/reference_papers.py).
+They come from the Google Drive folder [ASReview Faktencheck](https://drive.google.com/drive/folders/1v-vkFmrz2BpB0z3OeH9bjgYN6PJiUKcZ).
+`Boden-Maßnahmen.xlsx` is not in that folder. It comes from `Screening Tabellen/` of the [ownCloud share](https://cloud.dfki.de/owncloud/index.php/s/emiJLtgSqA4xMcP).
 Two files are named differently in the Drive folder:
 
 | Drive folder                | `data/external/screening_tables/` |
 | :-------------------------- | :-------------------------------- |
 | `ÖSL-Querschnitt_mark.xlsx` | `ÖSL-Querschnitt.xlsx`            |
 | `Boden-Treiber_mark.xlsx`   | `Boden-Treiber.xlsx`              |
+
+`<search>_dois_s2.csv` has the DOIs of the screening tables with their Semantic Scholar paper id and publication venue id, resolved from 2026-10-02 to 2026-11-11.
+The evaluation reads these files and calls the API only for a search without such a file.
 
 ### Publication venues
 
@@ -70,7 +72,6 @@ Notes
 - "Anteil" is `relevant` of `all queries` divided by `relevant in the crawl`
 - "Anzahl Referenzartikel Web of Science & Scopus" is not computed here
 - `download-paper-metadata` skips files that are already in `data/raw/semantic_scholar/release/2024-12-31/papers/`, so start with an empty folder
-- The metadata and the DOIs come from the Semantic Scholar API, so a new run can give slightly different numbers. The DOIs were resolved 2026-10-30 to 2026-11-11 and are in `<search>_dois_s2.csv` next to the screening tables
 
 ## Semantic filter (Tabelle 4)
 
